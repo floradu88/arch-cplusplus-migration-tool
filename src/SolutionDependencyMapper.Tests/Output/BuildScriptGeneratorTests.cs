@@ -14,13 +14,14 @@ public class BuildScriptGeneratorTests
         Directory.CreateDirectory(tempDir);
         var solutionPath = Path.Combine(tempDir, "Test.sln");
 
+        var projectPath = Path.Combine(tempDir, "ProjectA.vcxproj");
         var graph = new DependencyGraph
         {
             Nodes = new Dictionary<string, ProjectNode>
             {
-                ["A"] = new ProjectNode
+                [projectPath] = new ProjectNode
                 {
-                    Path = Path.Combine(tempDir, "ProjectA.vcxproj"),
+                    Path = projectPath,
                     Name = "ProjectA",
                     OutputType = "StaticLibrary"
                 }
@@ -28,7 +29,7 @@ public class BuildScriptGeneratorTests
             Edges = new List<DependencyEdge>(),
             BuildLayers = new List<BuildLayer>
             {
-                new() { LayerNumber = 0, ProjectPaths = new List<string> { Path.Combine(tempDir, "ProjectA.vcxproj") } }
+                new() { LayerNumber = 0, ProjectPaths = new List<string> { projectPath } }
             },
             Cycles = new List<List<string>>()
         };
@@ -61,13 +62,14 @@ public class BuildScriptGeneratorTests
         Directory.CreateDirectory(tempDir);
         var solutionPath = Path.Combine(tempDir, "Test.sln");
 
+        var projectPath = Path.Combine(tempDir, "ProjectA.vcxproj");
         var graph = new DependencyGraph
         {
             Nodes = new Dictionary<string, ProjectNode>
             {
-                ["A"] = new ProjectNode
+                [projectPath] = new ProjectNode
                 {
-                    Path = Path.Combine(tempDir, "ProjectA.vcxproj"),
+                    Path = projectPath,
                     Name = "ProjectA",
                     OutputType = "StaticLibrary"
                 }
@@ -75,7 +77,7 @@ public class BuildScriptGeneratorTests
             Edges = new List<DependencyEdge>(),
             BuildLayers = new List<BuildLayer>
             {
-                new() { LayerNumber = 0, ProjectPaths = new List<string> { Path.Combine(tempDir, "ProjectA.vcxproj") } }
+                new() { LayerNumber = 0, ProjectPaths = new List<string> { projectPath } }
             },
             Cycles = new List<List<string>>()
         };
@@ -108,13 +110,14 @@ public class BuildScriptGeneratorTests
         Directory.CreateDirectory(tempDir);
         var solutionPath = Path.Combine(tempDir, "Test.sln");
 
+        var projectPath = Path.Combine(tempDir, "ProjectA.vcxproj");
         var graph = new DependencyGraph
         {
             Nodes = new Dictionary<string, ProjectNode>
             {
-                ["A"] = new ProjectNode
+                [projectPath] = new ProjectNode
                 {
-                    Path = Path.Combine(tempDir, "ProjectA.vcxproj"),
+                    Path = projectPath,
                     Name = "ProjectA",
                     OutputType = "StaticLibrary"
                 }
@@ -122,7 +125,7 @@ public class BuildScriptGeneratorTests
             Edges = new List<DependencyEdge>(),
             BuildLayers = new List<BuildLayer>
             {
-                new() { LayerNumber = 0, ProjectPaths = new List<string> { Path.Combine(tempDir, "ProjectA.vcxproj") } }
+                new() { LayerNumber = 0, ProjectPaths = new List<string> { projectPath } }
             },
             Cycles = new List<List<string>>()
         };
@@ -155,13 +158,14 @@ public class BuildScriptGeneratorTests
         Directory.CreateDirectory(tempDir);
         var solutionPath = Path.Combine(tempDir, "Test.sln");
 
+        var projectPath = Path.Combine(tempDir, "ProjectA.vcxproj");
         var graph = new DependencyGraph
         {
             Nodes = new Dictionary<string, ProjectNode>
             {
-                ["A"] = new ProjectNode
+                [projectPath] = new ProjectNode
                 {
-                    Path = Path.Combine(tempDir, "ProjectA.vcxproj"),
+                    Path = projectPath,
                     Name = "ProjectA",
                     OutputType = "StaticLibrary"
                 }
@@ -169,7 +173,7 @@ public class BuildScriptGeneratorTests
             Edges = new List<DependencyEdge>(),
             BuildLayers = new List<BuildLayer>
             {
-                new() { LayerNumber = 0, ProjectPaths = new List<string> { Path.Combine(tempDir, "ProjectA.vcxproj") } }
+                new() { LayerNumber = 0, ProjectPaths = new List<string> { projectPath } }
             },
             Cycles = new List<List<string>>()
         };

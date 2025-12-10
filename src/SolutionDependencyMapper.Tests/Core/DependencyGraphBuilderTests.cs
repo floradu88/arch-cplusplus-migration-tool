@@ -68,8 +68,8 @@ public class DependencyGraphBuilderTests
         var graph = DependencyGraphBuilder.BuildGraph(projects);
 
         // Assert
-        Assert.NotNull(graph.Nodes["A"].MigrationScore);
-        Assert.NotNull(graph.Nodes["A"].MigrationDifficultyLevel);
+        Assert.NotNull(graph.Nodes["A.csproj"].MigrationScore);
+        Assert.NotNull(graph.Nodes["A.csproj"].MigrationDifficultyLevel);
     }
 
     [Fact]
