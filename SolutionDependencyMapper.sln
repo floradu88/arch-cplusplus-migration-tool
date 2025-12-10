@@ -3,6 +3,10 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC943}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolutionDependencyMapper", "src\SolutionDependencyMapper\SolutionDependencyMapper.csproj", "{706B9357-8D89-5832-34CB-824B73F3C0A7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolutionDependencyMapper.Tests", "src\SolutionDependencyMapper.Tests\SolutionDependencyMapper.Tests.csproj", "{43B67751-B844-8312-C555-C1FBEA96514F}"
@@ -24,5 +28,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{706B9357-8D89-5832-34CB-824B73F3C0A7} = {8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}
+		{43B67751-B844-8312-C555-C1FBEA96514F} = {8BC9CEB8-8B4A-11D0-8D11-00A0C91BC943}
 	EndGlobalSection
 EndGlobal
