@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SolutionDependencyMapper.csproj" />
+    <ProjectReference Include="..\SolutionDependencyMapper\SolutionDependencyMapper.csproj" />
   </ItemGroup>
 
 </Project>

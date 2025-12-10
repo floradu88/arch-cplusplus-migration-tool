@@ -23,7 +23,7 @@ class Program
             if (instances.Count == 0)
             {
                 instances = MSBuildLocator.QueryVisualStudioInstances(
-                    VisualStudioInstanceQueryOptions.Default | VisualStudioInstanceQueryOptions.IncludePrerelease
+                    VisualStudioInstanceQueryOptions.Default
                 ).ToList();
             }
 
@@ -91,7 +91,7 @@ class Program
         try
         {
             Console.WriteLine($"Loading solution: {solutionPath}");
-            
+
             // Step 1: Extract project paths from solution
             var projectPaths = SolutionLoader.ExtractProjectsFromSolution(solutionPath);
             Console.WriteLine($"Found {projectPaths.Count} projects.");
@@ -123,7 +123,7 @@ class Program
             Console.WriteLine($"  Nodes: {graph.Nodes.Count}");
             Console.WriteLine($"  Edges: {graph.Edges.Count}");
             Console.WriteLine($"  Build Layers: {graph.BuildLayers.Count}");
-            
+
             if (graph.Cycles.Count > 0)
             {
                 Console.WriteLine($"  ⚠️  Circular Dependencies: {graph.Cycles.Count}");
