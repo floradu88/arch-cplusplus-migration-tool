@@ -14,12 +14,57 @@ class Program
         // Initialize MSBuildLocator FIRST, before any MSBuild types are used
         if (!MSBuildLocator.IsRegistered)
         {
-            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
+            // Try to find MSBuild instances with different query options
+            var instances = MSBuildLocator.QueryVisualStudioInstances(
+                VisualStudioInstanceQueryOptions.Default
+            ).ToList();
+
+            // If no instances found, try including prerelease versions
             if (instances.Count == 0)
             {
+                instances = MSBuildLocator.QueryVisualStudioInstances(
+                    VisualStudioInstanceQueryOptions.Default | VisualStudioInstanceQueryOptions.IncludePrerelease
+                ).ToList();
+            }
+
+            // If still no instances, try to find MSBuild in common paths
+            if (instances.Count == 0)
+            {
+                var msbuildPaths = new[]
+                {
+                    @"C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\MSBuild\15.0\Bin\MSBuild.exe",
+                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild.exe"
+                };
+
+                var foundPath = msbuildPaths.FirstOrDefault(File.Exists);
+                if (foundPath != null)
+                {
+                    Console.WriteLine($"Warning: MSBuildLocator could not find Visual Studio instances.");
+                    Console.WriteLine($"Found MSBuild at: {foundPath}");
+                    Console.WriteLine($"However, MSBuildLocator requires Visual Studio to be properly registered.");
+                    Console.WriteLine();
+                }
+
                 Console.WriteLine("Error: No MSBuild instances found.");
-                Console.WriteLine("Please install Visual Studio Build Tools or Visual Studio.");
-                Console.WriteLine("Download: https://visualstudio.microsoft.com/downloads/");
+                Console.WriteLine();
+                Console.WriteLine("Possible solutions:");
+                Console.WriteLine("1. Install Visual Studio Build Tools or Visual Studio");
+                Console.WriteLine("   Download: https://visualstudio.microsoft.com/downloads/");
+                Console.WriteLine();
+                Console.WriteLine("2. For Build Tools, ensure 'MSBuild' workload is installed");
+                Console.WriteLine();
+                Console.WriteLine("3. Try running 'Developer Command Prompt for VS' or 'Developer PowerShell for VS'");
+                Console.WriteLine("   These set up the environment correctly for MSBuild");
+                Console.WriteLine();
+                Console.WriteLine("4. If Visual Studio is installed, try repairing the installation");
+                Console.WriteLine("   (Visual Studio Installer > Modify > Repair)");
                 return 1;
             }
 
@@ -27,6 +72,7 @@ class Program
             var instance = instances.OrderByDescending(i => i.Version).First();
             MSBuildLocator.RegisterInstance(instance);
             Console.WriteLine($"Using MSBuild from: {instance.MSBuildPath}");
+            Console.WriteLine($"MSBuild Version: {instance.Version}");
         }
 
         if (args.Length == 0)
