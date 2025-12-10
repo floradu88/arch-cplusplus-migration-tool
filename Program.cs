@@ -1,3 +1,4 @@
+using Microsoft.Build.Locator;
 using SolutionDependencyMapper.Core;
 using SolutionDependencyMapper.Output;
 
@@ -10,6 +11,24 @@ class Program
 {
     static int Main(string[] args)
     {
+        // Initialize MSBuildLocator FIRST, before any MSBuild types are used
+        if (!MSBuildLocator.IsRegistered)
+        {
+            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
+            if (instances.Count == 0)
+            {
+                Console.WriteLine("Error: No MSBuild instances found.");
+                Console.WriteLine("Please install Visual Studio Build Tools or Visual Studio.");
+                Console.WriteLine("Download: https://visualstudio.microsoft.com/downloads/");
+                return 1;
+            }
+
+            // Use the highest version available
+            var instance = instances.OrderByDescending(i => i.Version).First();
+            MSBuildLocator.RegisterInstance(instance);
+            Console.WriteLine($"Using MSBuild from: {instance.MSBuildPath}");
+        }
+
         if (args.Length == 0)
         {
             PrintUsage();

@@ -9,27 +9,17 @@ namespace SolutionDependencyMapper.Core;
 /// </summary>
 public class ProjectParser
 {
-    private static bool _msbuildRegistered = false;
-
     /// <summary>
     /// Ensures MSBuild is registered before parsing projects.
+    /// Note: MSBuildLocator should be initialized in Program.Main before this is called.
     /// </summary>
     private static void EnsureMsBuildRegistered()
     {
-        if (!_msbuildRegistered)
+        if (!MSBuildLocator.IsRegistered)
         {
-            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
-            if (instances.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    "No MSBuild instances found. Please install Visual Studio Build Tools or Visual Studio."
-                );
-            }
-
-            // Use the highest version available
-            var instance = instances.OrderByDescending(i => i.Version).First();
-            MSBuildLocator.RegisterInstance(instance);
-            _msbuildRegistered = true;
+            throw new InvalidOperationException(
+                "MSBuildLocator is not registered. This should be initialized in Program.Main before parsing projects."
+            );
         }
     }
 
