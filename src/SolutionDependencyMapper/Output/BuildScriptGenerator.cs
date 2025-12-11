@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SolutionDependencyMapper.Models;
+using SolutionDependencyMapper.Utils;
 
 namespace SolutionDependencyMapper.Output;
 
@@ -16,12 +17,14 @@ public class BuildScriptGenerator
     /// <param name="outputDir">Directory where output files should be written</param>
     /// <param name="configuration">Build configuration (Debug, Release, etc.)</param>
     /// <param name="platform">Build platform (x64, x86, AnyCPU, etc.)</param>
+    /// <param name="toolsContext">Optional tools context with discovered build tools</param>
     public static void GenerateAll(
         DependencyGraph graph,
         string solutionPath,
         string outputDir,
         string configuration = "Release",
-        string platform = "x64")
+        string platform = "x64",
+        ToolsContext? toolsContext = null)
     {
         var solutionDir = Path.GetDirectoryName(solutionPath) ?? ".";
         
@@ -31,15 +34,15 @@ public class BuildScriptGenerator
 
         // Generate PowerShell script
         var ps1Path = Path.Combine(outputDir, "build.ps1");
-        GeneratePowerShellScript(graph, solutionDir, ps1Path, configuration, platform);
+        GeneratePowerShellScript(graph, solutionDir, ps1Path, configuration, platform, toolsContext);
 
         // Generate Batch script
         var batPath = Path.Combine(outputDir, "build.bat");
-        GenerateBatchScript(graph, solutionDir, batPath, configuration, platform);
+        GenerateBatchScript(graph, solutionDir, batPath, configuration, platform, toolsContext);
 
         // Generate Shell script (Linux/macOS)
         var shPath = Path.Combine(outputDir, "build.sh");
-        GenerateShellScript(graph, solutionDir, shPath, configuration);
+        GenerateShellScript(graph, solutionDir, shPath, configuration, toolsContext);
     }
 
     /// <summary>
@@ -95,7 +98,8 @@ public class BuildScriptGenerator
         string solutionDir,
         string outputPath,
         string configuration,
-        string platform)
+        string platform,
+        ToolsContext? toolsContext = null)
     {
         var sb = new System.Text.StringBuilder();
         
@@ -108,32 +112,62 @@ public class BuildScriptGenerator
         sb.AppendLine("if (Get-Command msbuild -ErrorAction SilentlyContinue) {");
         sb.AppendLine("    $msbuild = \"msbuild\"");
         sb.AppendLine("} else {");
-        sb.AppendLine("    # Try to find MSBuild using vswhere (comes with Visual Studio)");
-        sb.AppendLine("    $vswhere = \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\";");
-        sb.AppendLine("    if (Test-Path $vswhere) {");
-        sb.AppendLine("        $vsPath = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe | Select-Object -First 1");
-        sb.AppendLine("        if ($vsPath) {");
-        sb.AppendLine("            $msbuild = $vsPath");
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
-        sb.AppendLine("    ");
-        sb.AppendLine("    # Fallback to common MSBuild locations");
-        sb.AppendLine("    if (-not $msbuild) {");
-        sb.AppendLine("        $commonPaths = @(");
-        sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
-        sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
-        sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
-        sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
-        sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
-        sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\"");
-        sb.AppendLine("        )");
-        sb.AppendLine("        foreach ($path in $commonPaths) {");
-        sb.AppendLine("            if (Test-Path $path) {");
-        sb.AppendLine("                $msbuild = $path");
-        sb.AppendLine("                break");
-        sb.AppendLine("            }");
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
+        
+        // Use discovered tools if available
+        if (toolsContext != null && toolsContext.HasTool("msbuild.exe"))
+        {
+            var msbuildPaths = toolsContext.GetMSBuildPathsForScript();
+            if (msbuildPaths.Count > 0)
+            {
+                sb.AppendLine("    # Using discovered MSBuild locations from tool discovery");
+                sb.AppendLine("    $discoveredPaths = @(");
+                foreach (var path in msbuildPaths)
+                {
+                    // Escape backslashes for PowerShell
+                    var escapedPath = path.Replace("\\", "\\");
+                    sb.AppendLine($"        \"{escapedPath}\",");
+                }
+                sb.AppendLine("    )");
+                sb.AppendLine("    foreach ($path in $discoveredPaths) {");
+                sb.AppendLine("        if (Test-Path $path) {");
+                sb.AppendLine("            $msbuild = $path");
+                sb.AppendLine("            break");
+                sb.AppendLine("        }");
+                sb.AppendLine("    }");
+            }
+        }
+        
+        // Fallback to vswhere and common paths if no tools were discovered
+        if (toolsContext == null || !toolsContext.HasTool("msbuild.exe"))
+        {
+            sb.AppendLine("    # Try to find MSBuild using vswhere (comes with Visual Studio)");
+            sb.AppendLine("    $vswhere = \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\";");
+            sb.AppendLine("    if (Test-Path $vswhere) {");
+            sb.AppendLine("        $vsPath = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe | Select-Object -First 1");
+            sb.AppendLine("        if ($vsPath) {");
+            sb.AppendLine("            $msbuild = $vsPath");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("    ");
+            sb.AppendLine("    # Fallback to common MSBuild locations");
+            sb.AppendLine("    if (-not $msbuild) {");
+            sb.AppendLine("        $commonPaths = @(");
+            sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
+            sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
+            sb.AppendLine("            \"${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
+            sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
+            sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\",");
+            sb.AppendLine("            \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\"");
+            sb.AppendLine("        )");
+            sb.AppendLine("        foreach ($path in $commonPaths) {");
+            sb.AppendLine("            if (Test-Path $path) {");
+            sb.AppendLine("                $msbuild = $path");
+            sb.AppendLine("                break");
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+        }
+        
         sb.AppendLine("}");
         sb.AppendLine();
         sb.AppendLine("if (-not $msbuild) {");
@@ -187,7 +221,8 @@ public class BuildScriptGenerator
         string solutionDir,
         string outputPath,
         string configuration,
-        string platform)
+        string platform,
+        ToolsContext? toolsContext = null)
     {
         var sb = new System.Text.StringBuilder();
         
@@ -200,41 +235,66 @@ public class BuildScriptGenerator
         sb.AppendLine("where msbuild >nul 2>&1");
         sb.AppendLine("if %ERRORLEVEL% EQU 0 (");
         sb.AppendLine("    set MSBUILD=msbuild");
+        sb.AppendLine("    goto :found");
         sb.AppendLine(") else (");
-        sb.AppendLine("    REM Try to find MSBuild using vswhere");
-        sb.AppendLine("    set VSWHERE=%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe");
-        sb.AppendLine("    if exist \"%VSWHERE%\" (");
-        sb.AppendLine("        for /f \"usebackq tokens=*\" %%i in (`\"%VSWHERE%\" -latest -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe`) do (");
-        sb.AppendLine("            set MSBUILD=%%i");
-        sb.AppendLine("            goto :found");
-        sb.AppendLine("        )");
-        sb.AppendLine("    )");
-        sb.AppendLine("    ");
-        sb.AppendLine("    REM Fallback to common MSBuild locations");
-        sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
-        sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
-        sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
-        sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
-        sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
-        sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
-        sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe");
-        sb.AppendLine("        goto :found");
-        sb.AppendLine("    )");
+        
+        // Use discovered tools if available
+        if (toolsContext != null && toolsContext.HasTool("msbuild.exe"))
+        {
+            var msbuildPaths = toolsContext.GetMSBuildPathsForScript();
+            if (msbuildPaths.Count > 0)
+            {
+                sb.AppendLine("    REM Using discovered MSBuild locations from tool discovery");
+                foreach (var path in msbuildPaths)
+                {
+                    var escapedPath = path.Replace("\\", "\\");
+                    sb.AppendLine($"    if exist \"{escapedPath}\" (");
+                    sb.AppendLine($"        set MSBUILD=\"{escapedPath}\"");
+                    sb.AppendLine("        goto :found");
+                    sb.AppendLine("    )");
+                }
+            }
+        }
+        
+        // Fallback to vswhere and common paths if no tools were discovered
+        if (toolsContext == null || !toolsContext.HasTool("msbuild.exe"))
+        {
+            sb.AppendLine("    REM Try to find MSBuild using vswhere");
+            sb.AppendLine("    set VSWHERE=%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe");
+            sb.AppendLine("    if exist \"%VSWHERE%\" (");
+            sb.AppendLine("        for /f \"usebackq tokens=*\" %%i in (`\"%VSWHERE%\" -latest -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe`) do (");
+            sb.AppendLine("            set MSBUILD=%%i");
+            sb.AppendLine("            goto :found");
+            sb.AppendLine("        )");
+            sb.AppendLine("    )");
+            sb.AppendLine("    ");
+            sb.AppendLine("    REM Fallback to common MSBuild locations");
+            sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+            sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+            sb.AppendLine("    if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+            sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Enterprise\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+            sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Professional\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+            sb.AppendLine("    if exist \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" (");
+            sb.AppendLine("        set MSBUILD=%ProgramFiles(x86)%\\Microsoft Visual Studio\\2019\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe");
+            sb.AppendLine("        goto :found");
+            sb.AppendLine("    )");
+        }
+        
         sb.AppendLine(")");
         sb.AppendLine(":found");
         sb.AppendLine();
@@ -293,7 +353,8 @@ public class BuildScriptGenerator
         DependencyGraph graph,
         string solutionDir,
         string outputPath,
-        string configuration)
+        string configuration,
+        ToolsContext? toolsContext = null)
     {
         var sb = new System.Text.StringBuilder();
         
@@ -301,6 +362,24 @@ public class BuildScriptGenerator
         sb.AppendLine("# Shell build script generated by Solution Dependency Mapper");
         sb.AppendLine("set -e");
         sb.AppendLine();
+        
+        // Add CMake detection if tools were discovered
+        if (toolsContext != null && toolsContext.HasTool("cmake.exe"))
+        {
+            var cmakePath = toolsContext.GetCmakePath();
+            if (cmakePath != null)
+            {
+                // Convert Windows path to Unix-style if needed (for WSL scenarios)
+                var unixPath = cmakePath.Replace("\\", "/").Replace("C:", "/mnt/c");
+                sb.AppendLine("# Using discovered CMake");
+                sb.AppendLine($"CMAKE=\"{unixPath}\"");
+                sb.AppendLine("if [ ! -f \"$CMAKE\" ]; then");
+                sb.AppendLine("    CMAKE=\"cmake\"  # Fallback to PATH");
+                sb.AppendLine("fi");
+                sb.AppendLine();
+            }
+        }
+        
         sb.AppendLine("echo \"=== Building Solution in Dependency Order ===\"");
         sb.AppendLine("echo \"Configuration: " + configuration + "\"");
         sb.AppendLine();
@@ -327,7 +406,14 @@ public class BuildScriptGenerator
                 var targetName = project.Name;
                 
                 sb.AppendLine($"echo \"  Building: {project.Name} ({project.OutputType})\"");
-                sb.AppendLine($"cmake --build . --target {targetName} --config {configuration}");
+                if (toolsContext != null && toolsContext.HasTool("cmake.exe"))
+                {
+                    sb.AppendLine("${CMAKE:-cmake} --build . --target " + targetName + " --config " + configuration);
+                }
+                else
+                {
+                    sb.AppendLine($"cmake --build . --target {targetName} --config {configuration}");
+                }
             }
         }
 

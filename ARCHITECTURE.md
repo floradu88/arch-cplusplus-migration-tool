@@ -33,7 +33,7 @@ The Solution Dependency Mapper is a cross-platform .NET 8.0 tool that automatica
 
 ### Implementation Status
 - ✅ **7/7 Core Features** - All core features implemented
-- ✅ **3/4 Addon Features** - Build Layer Analysis, Cycle Detection, and Build Script Generation implemented
+- ✅ **4/5 Addon Features** - Build Layer Analysis, Cycle Detection, Build Script Generation, and Tool Discovery implemented
 - ✅ **1/5 Future Extensions** - Migration Scoring implemented
 
 ---
@@ -77,6 +77,27 @@ The Solution Dependency Mapper is a cross-platform .NET 8.0 tool that automatica
 ---
 
 ## Core Components
+
+### 0. ToolFinder (Tool Discovery)
+**Responsibility**: Discover and locate all build tools before any processing begins
+
+**Key Functions**:
+- Search for Visual Studio tools (MSBuild, cl.exe, link.exe, etc.)
+- Search for CMake and other C++ build tools
+- Search in multiple locations:
+  - Project root directory (if specified)
+  - PATH environment variable
+  - Common Windows installation locations
+  - Visual Studio directories (using vswhere.exe)
+- Store discovered tools in `ToolsContext` for use throughout the application
+- Provide tool paths to build script generators
+
+**Input**: Optional project root directory  
+**Output**: `ToolsContext` with all discovered tools
+
+**Integration**: Runs FIRST before MSBuildLocator initialization and all other operations
+
+---
 
 ### 1. SolutionLoader
 **Responsibility**: Parse `.sln` files and extract project paths
@@ -217,6 +238,7 @@ The Solution Dependency Mapper is a cross-platform .NET 8.0 tool that automatica
 | ADDON-002 | Build Script Generation | ✅ **Implemented** | Generate platform-specific build scripts (PowerShell, Batch, Shell) |
 | ADDON-003 | Cycle Detection | ✅ **Implemented** | Detect and report circular dependencies |
 | ADDON-004 | CMake Skeleton Generation | ⏳ **Future** | Generate CMakeLists.txt from dependency graph |
+| ADDON-005 | Tool Discovery | ✅ **Implemented** | Automatically discover Visual Studio tools, CMake, and C++ build tools at startup |
 
 ### Future Extensions
 
@@ -558,6 +580,8 @@ SolutionDependencyMapper/
 │   ├── DrawioGenerator.cs            # Draw.io generator ✅
 │   └── BuildScriptGenerator.cs       # Build script generator ✅
 └── Utils/
+    ├── ToolFinder.cs                  # Tool discovery utility ✅
+    ├── ToolsContext.cs                # Tools context storage ✅
     ├── TopologicalSorter.cs          # Topological sort algorithm
     └── CycleDetector.cs              # Cycle detection algorithm
 ```

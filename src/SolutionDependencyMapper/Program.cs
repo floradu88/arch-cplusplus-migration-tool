@@ -1,6 +1,7 @@
 using Microsoft.Build.Locator;
 using SolutionDependencyMapper.Core;
 using SolutionDependencyMapper.Output;
+using SolutionDependencyMapper.Utils;
 
 namespace SolutionDependencyMapper;
 
@@ -9,9 +10,39 @@ namespace SolutionDependencyMapper;
 /// </summary>
 class Program
 {
+    // Global tools context - populated at startup
+    private static ToolsContext? _toolsContext;
+
     static int Main(string[] args)
     {
-        // Initialize MSBuildLocator FIRST, before any MSBuild types are used
+        // STEP 0: Discover all tools FIRST before everything else
+        Console.WriteLine("Discovering build tools...");
+        var solutionRoot = args.Length > 0 && File.Exists(args[0]) 
+            ? Path.GetDirectoryName(Path.GetFullPath(args[0])) 
+            : null;
+        
+        _toolsContext = new ToolsContext
+        {
+            AllTools = ToolFinder.FindAllTools(solutionRoot)
+        };
+
+        var toolCount = _toolsContext.AllTools.Values.Sum(v => v.Count);
+        Console.WriteLine($"Found {toolCount} tool instances across {_toolsContext.AllTools.Count} tool types.");
+        
+        // Show key tools found
+        if (_toolsContext.HasTool("msbuild.exe"))
+        {
+            var msbuildPath = _toolsContext.GetMSBuildPath();
+            Console.WriteLine($"  MSBuild: {msbuildPath}");
+        }
+        if (_toolsContext.HasTool("cmake.exe"))
+        {
+            var cmakePath = _toolsContext.GetCmakePath();
+            Console.WriteLine($"  CMake: {cmakePath}");
+        }
+        Console.WriteLine();
+
+        // Initialize MSBuildLocator using discovered tools
         if (!MSBuildLocator.IsRegistered)
         {
             // Try to find MSBuild instances with different query options
@@ -27,31 +58,21 @@ class Program
                 ).ToList();
             }
 
-            // If still no instances, try to find MSBuild in common paths
-            if (instances.Count == 0)
+            // If still no instances, try using ToolFinder results
+            if (instances.Count == 0 && _toolsContext != null && _toolsContext.HasTool("msbuild.exe"))
             {
-                var msbuildPaths = new[]
-                {
-                    @"C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\MSBuild\15.0\Bin\MSBuild.exe",
-                    @"C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild.exe"
-                };
-
-                var foundPath = msbuildPaths.FirstOrDefault(File.Exists);
-                if (foundPath != null)
+                var msbuildPath = _toolsContext.GetMSBuildPath();
+                if (msbuildPath != null && File.Exists(msbuildPath))
                 {
                     Console.WriteLine($"Warning: MSBuildLocator could not find Visual Studio instances.");
-                    Console.WriteLine($"Found MSBuild at: {foundPath}");
+                    Console.WriteLine($"Found MSBuild via ToolFinder at: {msbuildPath}");
                     Console.WriteLine($"However, MSBuildLocator requires Visual Studio to be properly registered.");
                     Console.WriteLine();
                 }
+            }
 
+            if (instances.Count == 0)
+            {
                 Console.WriteLine("Error: No MSBuild instances found.");
                 Console.WriteLine();
                 Console.WriteLine("Possible solutions:");
@@ -73,6 +94,16 @@ class Program
             MSBuildLocator.RegisterInstance(instance);
             Console.WriteLine($"Using MSBuild from: {instance.MSBuildPath}");
             Console.WriteLine($"MSBuild Version: {instance.Version}");
+        }
+
+        // Check for special commands
+        if (args.Length > 0)
+        {
+            if (args[0] == "--find-tools" || args[0] == "--tools" || args[0] == "-t")
+            {
+                FindAndPrintTools(args.Length > 1 ? args[1] : null);
+                return 0;
+            }
         }
 
         if (args.Length == 0)
@@ -152,7 +183,7 @@ class Program
 
             // Build scripts output (addon feature)
             Console.WriteLine("\nGenerating build scripts...");
-            BuildScriptGenerator.GenerateAll(graph, solutionPath, outputDir, "Release", "x64");
+            BuildScriptGenerator.GenerateAll(graph, solutionPath, outputDir, "Release", "x64", _toolsContext);
             Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build-layers.json")}");
             Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.ps1")}");
             Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.bat")}");
@@ -171,12 +202,42 @@ class Program
         }
     }
 
+    private static void FindAndPrintTools(string? projectRoot)
+    {
+        Console.WriteLine("Solution Dependency Mapper - Tool Finder");
+        Console.WriteLine("=========================================");
+        Console.WriteLine();
+        Console.WriteLine("Searching for Visual Studio tools, CMake, and other C++ build tools...");
+        Console.WriteLine();
+
+        if (!string.IsNullOrEmpty(projectRoot))
+        {
+            Console.WriteLine($"Project root: {Path.GetFullPath(projectRoot)}");
+            Console.WriteLine();
+        }
+
+        var tools = ToolFinder.FindAllTools(projectRoot);
+        ToolFinder.PrintFoundTools(tools);
+
+        Console.WriteLine();
+        Console.WriteLine("=== Summary ===");
+        Console.WriteLine($"Total tools found: {tools.Values.Sum(v => v.Count)}");
+        Console.WriteLine($"Unique tool types: {tools.Count}");
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine("Solution Dependency Mapper");
         Console.WriteLine("==========================");
         Console.WriteLine();
-        Console.WriteLine("Usage: SolutionDependencyMapper <path-to-solution.sln>");
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  SolutionDependencyMapper <path-to-solution.sln>");
+        Console.WriteLine("  SolutionDependencyMapper --find-tools [project-root]");
+        Console.WriteLine();
+        Console.WriteLine("Commands:");
+        Console.WriteLine("  <path-to-solution.sln>  Analyze solution and generate outputs");
+        Console.WriteLine("  --find-tools            Find all Visual Studio tools, CMake, and C++ tools");
+        Console.WriteLine("                          Optional: specify project root directory to search");
         Console.WriteLine();
         Console.WriteLine("This tool analyzes a Visual Studio solution and generates:");
         Console.WriteLine("  - dependency-tree.json (machine-readable dependency data)");
@@ -188,6 +249,12 @@ class Program
         Console.WriteLine("  - build.sh (Shell build script for Linux/macOS)");
         Console.WriteLine();
         Console.WriteLine("Output files are written to: <solution-directory>/output/");
+        Console.WriteLine();
+        Console.WriteLine("Tool Finder searches in:");
+        Console.WriteLine("  - Project root directory (if specified)");
+        Console.WriteLine("  - PATH environment variable");
+        Console.WriteLine("  - Common Windows installation locations");
+        Console.WriteLine("  - Visual Studio directories (using vswhere.exe)");
     }
 }
 

@@ -26,6 +26,7 @@ This tool helps you understand and migrate complex Visual Studio solutions by:
 - ✅ **Build Layer Analysis** - Topological sorting into build layers
 - ✅ **Cycle Detection** - Detect and report circular dependencies
 - ✅ **Build Script Generation** - Generate platform-specific build scripts (PowerShell, Batch, Shell)
+- ✅ **Tool Discovery** - Automatically discover Visual Studio tools, CMake, and C++ build tools at startup
 - ⏳ **CMake Generation** - Auto-generate CMakeLists.txt (pending)
 
 ### Advanced Features
@@ -394,6 +395,8 @@ SolutionDependencyMapper/
 │   ├── DrawioGenerator.cs          # Draw.io generator
 │   └── BuildScriptGenerator.cs     # Build script generator
 ├── Utils/
+│   ├── ToolFinder.cs              # Tool discovery utility
+│   ├── ToolsContext.cs             # Tools context storage
 │   ├── TopologicalSorter.cs       # Topological sort algorithm
 │   ├── CycleDetector.cs            # Cycle detection algorithm
 │   └── MigrationScorer.cs         # Migration difficulty scoring
