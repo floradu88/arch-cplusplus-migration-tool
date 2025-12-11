@@ -27,6 +27,11 @@ This tool helps you understand and migrate complex Visual Studio solutions by:
 - ✅ **Cycle Detection** - Detect and report circular dependencies
 - ✅ **Build Script Generation** - Generate platform-specific build scripts (PowerShell, Batch, Shell)
 - ✅ **Tool Discovery** - Automatically discover Visual Studio tools, CMake, and C++ build tools at startup
+- ✅ **Automatic Package Installation** - Automatically installs missing Microsoft.Build packages and retries parsing
+- ✅ **Project Type Detection** - Identifies project types (C# Project, C++ Project, etc.) from file extensions
+- ✅ **ToolsVersion Reporting** - Extracts and reports MSBuild ToolsVersion for each project
+- ✅ **Solution Summary Report** - Comprehensive report with project types, ToolsVersion distribution, and statistics
+- ✅ **Error Resilience** - Continues parsing all projects even when individual projects fail
 - ⏳ **CMake Generation** - Auto-generate CMakeLists.txt (pending)
 
 ### Advanced Features
@@ -78,9 +83,10 @@ Or if you've built it:
 dotnet SolutionDependencyMapper.dll "C:\Projects\MySolution\MySolution.sln"
 ```
 
-### Using from VS Developer Command Prompt
+### Command-Line Options
 
-If you're running from VS2022 Developer Command Prompt (where MSBuild/dotnet are already configured), you can use the `--assume-vs-env` flag to skip MSBuildLocator registration:
+#### `--assume-vs-env` or `--vs-env`
+If you're running from VS2022 Developer Command Prompt (where MSBuild/dotnet are already configured), you can use this flag to skip MSBuildLocator registration:
 
 ```bash
 dotnet run -- "C:\Projects\MySolution\MySolution.sln" --assume-vs-env
@@ -88,23 +94,90 @@ dotnet run -- "C:\Projects\MySolution\MySolution.sln" --assume-vs-env
 
 This flag tells the tool to use MSBuild/dotnet directly from the environment, bypassing MSBuildLocator registration checks.
 
+#### `--find-tools` or `--tools` or `-t`
+Discover and list all Visual Studio tools, CMake, and C++ build tools:
+
+```bash
+dotnet run -- --find-tools
+```
+
+Optionally specify a project root directory to search:
+
+```bash
+dotnet run -- --find-tools "C:\Projects\MySolution"
+```
+
+This command searches for tools in:
+- Project root directory (if specified)
+- PATH environment variable
+- Common Windows installation locations
+- Visual Studio directories (using vswhere.exe)
+
 ### Example Output
 
 When you run the tool, you'll see progress information:
 
 ```
+Discovering build tools...
+Found 12 tool instances across 5 tool types.
+  MSBuild: C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe
+  CMake: C:\Program Files\CMake\bin\cmake.exe
+
 Loading solution: C:\Projects\MySolution\MySolution.sln
 Found 15 projects.
 
 Parsing projects...
   Parsing: CoreLibrary.vcxproj
+    ✓ Successfully parsed: CoreLibrary.vcxproj
   Parsing: Utils.vcxproj
+    ✓ Successfully parsed: Utils.vcxproj
   Parsing: App.csproj
-  ...
-Successfully parsed 15 projects.
+    ⚠️  Detected missing package error for App.csproj
+     Attempting to install missing Microsoft.Build packages...
+    ✓ Installed Microsoft.Build packages to: App.csproj
+    ✓ Restored packages for: App.csproj
+     Retrying parse (attempt 2/2)...
+    ✓ Successfully parsed: App.csproj
+  Parsing: LegacyProject.vcxproj
+    ✗ Failed to parse: LegacyProject.vcxproj
+
+Parsing Summary:
+  ✓ Successfully parsed: 14 project(s)
+  ✗ Failed to parse: 1 project(s)
+
+Failed Projects:
+  - LegacyProject.vcxproj: Parsing returned null (see errors above)
+
+======================================================================
+SOLUTION SUMMARY REPORT
+======================================================================
+Solution: MySolution.sln
+Total Projects: 14
+
+Project Types:
+  C# Project: 8 project(s)
+  C++ Project: 6 project(s)
+
+ToolsVersion Distribution:
+  Current: 8 project(s)
+  15.0: 6 project(s)
+
+Output Types:
+  Exe: 2 project(s)
+  DynamicLibrary: 5 project(s)
+  StaticLibrary: 7 project(s)
+
+Project Details:
+----------------------------------------------------------------------
+Project Name                   Type            ToolsVersion  Output    
+----------------------------------------------------------------------
+App                            C# Project      Current      Exe       
+CoreLibrary                    C++ Project     15.0         StaticLibrary
+Utils                          C++ Project     15.0         StaticLibrary
+...
 
 Building dependency graph...
-  Nodes: 15
+  Nodes: 14
   Edges: 23
   Build Layers: 4
   ⚠️  Circular Dependencies: 1
@@ -140,10 +213,13 @@ Machine-readable JSON containing all project metadata, dependencies, and migrati
   {
     "name": "CoreLibrary",
     "path": "src/Core/CoreLibrary.vcxproj",
+    "projectType": "C++ Project",
+    "toolsVersion": "15.0",
     "outputType": "StaticLibrary",
     "outputBinary": "bin/Release/CoreLibrary.lib",
     "targetName": "CoreLibrary",
     "targetExtension": ".lib",
+    "targetFramework": null,
     "projectDependencies": [],
     "externalDependencies": [],
     "properties": {
@@ -155,18 +231,27 @@ Machine-readable JSON containing all project metadata, dependencies, and migrati
   },
   {
     "name": "App",
-    "path": "src/App/App.vcxproj",
+    "path": "src/App/App.csproj",
+    "projectType": "C# Project",
+    "toolsVersion": "Current",
     "outputType": "Exe",
     "outputBinary": "bin/Release/App.exe",
+    "targetName": "App",
+    "targetExtension": ".exe",
+    "targetFramework": "net8.0",
     "projectDependencies": [
       "src/Core/CoreLibrary.vcxproj"
     ],
     "externalDependencies": [
-      "user32.lib",
-      "ws2_32.lib"
+      "System.Runtime",
+      "System.Console"
     ],
-    "migrationScore": 65,
-    "migrationDifficultyLevel": "Very Hard"
+    "properties": {
+      "Configuration": "Release",
+      "Platform": "AnyCPU"
+    },
+    "migrationScore": 15,
+    "migrationDifficultyLevel": "Easy"
   }
 ]
 ```
@@ -183,8 +268,10 @@ MermaidJS diagram that renders automatically on GitHub, GitLab, and most Markdow
 **Features:**
 - Interactive dependency graph
 - Color-coded by project type
+- Project type and ToolsVersion displayed in nodes
 - Migration scores displayed in nodes
-- Build layers section
+- Project types and ToolsVersion statistics section
+- Build layers section with project metadata
 - Circular dependency warnings
 
 **Example visualization:**
@@ -407,6 +494,7 @@ SolutionDependencyMapper/
 ├── Utils/
 │   ├── ToolFinder.cs              # Tool discovery utility
 │   ├── ToolsContext.cs             # Tools context storage
+│   ├── PackageInstaller.cs        # Automatic package installation utility
 │   ├── TopologicalSorter.cs       # Topological sort algorithm
 │   ├── CycleDetector.cs            # Cycle detection algorithm
 │   └── MigrationScorer.cs         # Migration difficulty scoring
@@ -449,6 +537,7 @@ Understand complex, multi-year-old solutions:
 ```bash
 dotnet run -- "LegacySolution.sln"
 # Review dependency-graph.md to understand structure
+# Check solution summary report for project types and ToolsVersion distribution
 ```
 
 ### 2. Migration Planning
@@ -456,6 +545,7 @@ Identify migration priorities:
 ```bash
 dotnet run -- "MySolution.sln"
 # Check migration scores in dependency-tree.json
+# Review project types and ToolsVersion to identify modernization needs
 # Focus on "Easy" projects first
 ```
 
@@ -464,6 +554,7 @@ Generate build scripts for CI/CD:
 ```bash
 dotnet run -- "MySolution.sln"
 # Use generated build.ps1 in Azure DevOps, GitHub Actions, etc.
+# Build scripts automatically use discovered tool paths
 ```
 
 ### 4. Documentation
@@ -472,6 +563,7 @@ Create visual documentation:
 dotnet run -- "MySolution.sln"
 # Include dependency-graph.md in project documentation
 # Export dependency-graph.drawio to PNG for presentations
+# Solution summary report provides comprehensive project overview
 ```
 
 ### 5. Dependency Audit
@@ -480,6 +572,16 @@ Find circular dependencies and issues:
 dotnet run -- "MySolution.sln"
 # Review cycles in dependency-graph.md
 # Check build-layers.json for build order
+# All projects are parsed even if some fail
+```
+
+### 6. Project Modernization Assessment
+Assess solution modernization needs:
+```bash
+dotnet run -- "MySolution.sln"
+# Review ToolsVersion distribution to identify projects needing updates
+# Check project types to understand technology mix
+# Use solution summary report for planning modernization efforts
 ```
 
 ## 🐛 Troubleshooting
@@ -512,6 +614,38 @@ The tool automatically discovers MSBuild using ToolFinder, but MSBuildLocator (r
    - If found via ToolFinder but MSBuildLocator fails, Visual Studio registration is the issue
 
 6. **Note:** The generated build scripts will use discovered MSBuild paths even if MSBuildLocator fails
+
+### Project Parsing Errors
+**Error:** `Failed to parse: ProjectName.csproj` or `Error parsing project`
+
+The tool now continues parsing all projects even when individual projects fail. Failed projects are tracked and reported in the summary.
+
+**Solutions:**
+1. **Automatic Package Installation**
+   - The tool automatically detects missing Microsoft.Build packages
+   - Automatically installs required packages (Microsoft.Build 15.1.548, etc.)
+   - Runs `dotnet restore` automatically
+   - Retries parsing after package installation
+
+2. **Check Error Messages**
+   - Review the "Failed Projects" section in the output
+   - Each failed project shows the specific error message
+   - Fix the project file based on the error
+
+3. **Manual Package Installation**
+   - If automatic installation fails, manually add missing packages:
+   ```xml
+   <ItemGroup>
+     <PackageReference Include="Microsoft.Build" Version="15.1.548" />
+     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="15.1.548" />
+   </ItemGroup>
+   ```
+   - Then run `dotnet restore` on the project
+
+4. **Verify Project File Format**
+   - Ensure the project file is valid XML
+   - Check for syntax errors in the project file
+   - Verify project references are correct
 
 ### No Projects Found
 **Error:** `No projects found in solution`
