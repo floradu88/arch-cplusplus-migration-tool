@@ -200,23 +200,64 @@ class Program
                 return 1;
             }
 
-            // Step 2: Parse each project
+            // Step 2: Parse each project (continue on errors)
             Console.WriteLine("\nParsing projects...");
             var projects = new List<Models.ProjectNode>();
+            var failedProjects = new List<(string Path, string Error)>();
+            
             foreach (var projectPath in projectPaths)
             {
-                Console.WriteLine($"  Parsing: {Path.GetFileName(projectPath)}");
-                var project = ProjectParser.ParseProject(projectPath, assumeVsEnv);
-                if (project != null)
+                try
                 {
-                    projects.Add(project);
+                    Console.WriteLine($"  Parsing: {Path.GetFileName(projectPath)}");
+                    var project = ProjectParser.ParseProject(projectPath, assumeVsEnv);
+                    if (project != null)
+                    {
+                        projects.Add(project);
+                        Console.WriteLine($"    ✓ Successfully parsed: {Path.GetFileName(projectPath)}");
+                    }
+                    else
+                    {
+                        failedProjects.Add((projectPath, "Parsing returned null (see errors above)"));
+                        Console.WriteLine($"    ✗ Failed to parse: {Path.GetFileName(projectPath)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Catch any unexpected exceptions to ensure parsing continues
+                    var errorMsg = ex.Message;
+                    failedProjects.Add((projectPath, errorMsg));
+                    Console.WriteLine($"    ✗ Error parsing {Path.GetFileName(projectPath)}: {errorMsg}");
+                    Console.WriteLine($"      (Continuing with remaining projects...)");
                 }
             }
 
-            Console.WriteLine($"Successfully parsed {projects.Count} projects.");
+            Console.WriteLine($"\nParsing Summary:");
+            Console.WriteLine($"  ✓ Successfully parsed: {projects.Count} project(s)");
+            if (failedProjects.Count > 0)
+            {
+                Console.WriteLine($"  ✗ Failed to parse: {failedProjects.Count} project(s)");
+                Console.WriteLine("\nFailed Projects:");
+                foreach (var (path, error) in failedProjects)
+                {
+                    Console.WriteLine($"  - {Path.GetFileName(path)}: {error}");
+                }
+            }
 
-            // Step 2.5: Print solution summary report
-            PrintSolutionSummary(projects, solutionPath);
+            // Step 2.5: Print solution summary report (only for successfully parsed projects)
+            if (projects.Count > 0)
+            {
+                PrintSolutionSummary(projects, solutionPath);
+            }
+            else
+            {
+                Console.WriteLine("\n⚠️  Warning: No projects were successfully parsed. Cannot generate summary or outputs.");
+                if (failedProjects.Count > 0)
+                {
+                    Console.WriteLine("   Please check the errors above and fix the project files.");
+                }
+                return 1;
+            }
 
             // Step 3: Build dependency graph
             Console.WriteLine("\nBuilding dependency graph...");
