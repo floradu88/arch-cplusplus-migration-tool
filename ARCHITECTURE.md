@@ -16,7 +16,7 @@
 ## Overview
 
 ### Purpose
-The Solution Dependency Mapper is a cross-platform .NET 8.0 tool that automatically analyzes Visual Studio solutions containing mixed native (C++) and managed (.NET) projects. It extracts dependency relationships, identifies project types and outputs, and generates visual diagrams and build scripts to facilitate migration and modernization of legacy C++ ecosystems.
+The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 and 9, with .NET 10 support planned) that automatically analyzes Visual Studio solutions containing mixed native (C++) and managed (.NET) projects. Supports Visual Studio 2022, 2025, and 2026. It extracts dependency relationships, identifies project types and outputs, and generates visual diagrams and build scripts to facilitate migration and modernization of legacy C++ ecosystems.
 
 ### Goals
 - **Dependency Discovery**: Automatically map all project-to-project and external dependencies
@@ -270,6 +270,7 @@ public class ProjectNode
     public List<string> ProjectDependencies { get; set; }  // Project reference paths
     public List<string> ExternalDependencies { get; set; } // External library names
     public Dictionary<string, string> Properties { get; set; } // Additional MSBuild properties
+    public string? TargetFramework { get; set; }        // .NET TargetFramework (e.g., net8.0, net9.0, net10.0)
 }
 ```
 

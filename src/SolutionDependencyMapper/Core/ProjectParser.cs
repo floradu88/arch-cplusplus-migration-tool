@@ -71,6 +71,9 @@ public class ProjectParser
             // Extract additional properties
             node.Properties = ExtractProperties(project);
 
+            // Extract TargetFramework for .NET projects
+            node.TargetFramework = ExtractTargetFramework(project);
+
             projectCollection.UnloadProject(project);
             return node;
         }
@@ -208,6 +211,32 @@ public class ProjectParser
         }
 
         return dependencies.Distinct().ToList();
+    }
+
+    /// <summary>
+    /// Extracts the target framework for .NET projects (.csproj).
+    /// Supports .NET Framework, .NET Core, .NET 5+, .NET 8, .NET 9, and .NET 10 (when available).
+    /// </summary>
+    private static string? ExtractTargetFramework(Project project)
+    {
+        // Try TargetFramework first (single TFM)
+        var targetFramework = project.GetPropertyValue("TargetFramework");
+        if (!string.IsNullOrWhiteSpace(targetFramework))
+        {
+            return targetFramework;
+        }
+
+        // Try TargetFrameworks (multi-targeting)
+        var targetFrameworks = project.GetPropertyValue("TargetFrameworks");
+        if (!string.IsNullOrWhiteSpace(targetFrameworks))
+        {
+            // Return first framework or all if multiple
+            var frameworks = targetFrameworks.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            return frameworks.Length > 0 ? frameworks[0] : targetFrameworks;
+        }
+
+        // For .vcxproj files, return null (not applicable)
+        return null;
     }
 
     /// <summary>

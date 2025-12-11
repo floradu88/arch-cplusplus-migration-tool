@@ -15,6 +15,9 @@ public class ProjectNode
     public List<string> ExternalDependencies { get; set; } = new();
     public Dictionary<string, string> Properties { get; set; } = new();
     
+    // .NET Target Framework (for .csproj files)
+    public string? TargetFramework { get; set; }
+    
     // Migration scoring (optional, calculated by MigrationScorer)
     public int? MigrationScore { get; set; }
     public string? MigrationDifficultyLevel { get; set; }
