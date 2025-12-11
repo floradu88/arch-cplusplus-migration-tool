@@ -481,23 +481,28 @@ dotnet run -- "MySolution.sln"
 The tool automatically discovers MSBuild using ToolFinder, but MSBuildLocator (required for parsing project files) needs Visual Studio to be properly registered.
 
 **Solutions:**
-1. **Install Visual Studio or Build Tools**
+1. **Use `--assume-vs-env` flag (Recommended for VS Developer Command Prompt)**
+   - If running from VS2022 Developer Command Prompt, use: `dotnet run -- "solution.sln" --assume-vs-env`
+   - This bypasses MSBuildLocator registration and uses MSBuild/dotnet directly from the environment
+
+2. **Install Visual Studio or Build Tools**
    - Download: https://visualstudio.microsoft.com/downloads/
    - Ensure the "MSBuild" workload is installed
 
-2. **Run from Developer Command Prompt**
+3. **Run from Developer Command Prompt**
    - Use "Developer Command Prompt for VS" or "Developer PowerShell for VS"
    - These set up the environment correctly for MSBuildLocator
+   - Or use `--assume-vs-env` flag when running from these prompts
 
-3. **Repair Visual Studio Installation**
+4. **Repair Visual Studio Installation**
    - Open Visual Studio Installer
    - Click "Modify" → "Repair"
 
-4. **Check Tool Discovery**
+5. **Check Tool Discovery**
    - Run `dotnet run -- --find-tools` to see if MSBuild is discovered
    - If found via ToolFinder but MSBuildLocator fails, Visual Studio registration is the issue
 
-5. **Note:** The generated build scripts will use discovered MSBuild paths even if MSBuildLocator fails
+6. **Note:** The generated build scripts will use discovered MSBuild paths even if MSBuildLocator fails
 
 ### No Projects Found
 **Error:** `No projects found in solution`
