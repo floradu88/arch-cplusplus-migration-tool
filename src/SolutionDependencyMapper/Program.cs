@@ -1,4 +1,5 @@
 using Microsoft.Build.Locator;
+using SolutionDependencyMapper.Cli;
 using SolutionDependencyMapper.Core;
 using SolutionDependencyMapper.Output;
 using SolutionDependencyMapper.Utils;
@@ -15,226 +16,87 @@ class Program
 
     static int Main(string[] args)
     {
+        if (!CliOptions.TryParse(args, out var options, out var error))
+        {
+            Console.WriteLine(error);
+            PrintUsage();
+            return 1;
+        }
+
         // STEP 0: Discover all tools FIRST before everything else
-        Console.WriteLine("Discovering build tools...");
-        var solutionRoot = args.Length > 0 && File.Exists(args[0]) 
-            ? Path.GetDirectoryName(Path.GetFullPath(args[0])) 
-            : null;
-        
-        _toolsContext = new ToolsContext
-        {
-            AllTools = ToolFinder.FindAllTools(solutionRoot)
-        };
+        _toolsContext = DiscoverTools(options);
 
-        var toolCount = _toolsContext.AllTools.Values.Sum(v => v.Count);
-        Console.WriteLine($"Found {toolCount} tool instances across {_toolsContext.AllTools.Count} tool types.");
-        
-        // Show key tools found
-        if (_toolsContext.HasTool("msbuild.exe"))
+        if (options.Command == CliCommand.FindTools)
         {
-            var msbuildPath = _toolsContext.GetMSBuildPath();
-            Console.WriteLine($"  MSBuild: {msbuildPath}");
-        }
-        if (_toolsContext.HasTool("cmake.exe"))
-        {
-            var cmakePath = _toolsContext.GetCmakePath();
-            Console.WriteLine($"  CMake: {cmakePath}");
-        }
-        Console.WriteLine();
-
-        // Check for special commands and flags BEFORE MSBuildLocator initialization
-        bool assumeVsEnv = false;
-        bool autoInstallPackages = true; // Default: auto-install packages
-        string? solutionPath = null;
-        
-        if (args.Length > 0)
-        {
-            // Check for --find-tools command
-            if (args[0] == "--find-tools" || args[0] == "--tools" || args[0] == "-t")
-            {
-                FindAndPrintTools(args.Length > 1 ? args[1] : null);
-                return 0;
-            }
-            
-            // Check for flags
-            var argsList = args.ToList();
-            
-            // Check for --assume-vs-env flag
-            if (argsList.Contains("--assume-vs-env") || argsList.Contains("--vs-env"))
-            {
-                assumeVsEnv = true;
-                argsList.Remove("--assume-vs-env");
-                argsList.Remove("--vs-env");
-            }
-            
-            // Check for --no-auto-install-packages flag (disables auto-installation)
-            if (argsList.Contains("--no-auto-install-packages") || argsList.Contains("--no-auto-packages"))
-            {
-                autoInstallPackages = false;
-                argsList.Remove("--no-auto-install-packages");
-                argsList.Remove("--no-auto-packages");
-            }
-            
-            // Check for --auto-install-packages flag (explicitly enables, though it's default)
-            if (argsList.Contains("--auto-install-packages") || argsList.Contains("--auto-packages"))
-            {
-                autoInstallPackages = true;
-                argsList.Remove("--auto-install-packages");
-                argsList.Remove("--auto-packages");
-            }
-            
-            args = argsList.ToArray();
-            
-            // Get solution path (first non-flag argument)
-            solutionPath = args.FirstOrDefault(arg => !arg.StartsWith("--") && File.Exists(arg));
+            FindAndPrintTools(options.FindToolsRoot);
+            return 0;
         }
 
-        // Initialize MSBuildLocator using discovered tools
-        // (Only needed for solution analysis, not for --find-tools)
-        // Skip if --assume-vs-env flag is set (assumes environment is already configured)
-        if (!assumeVsEnv && !MSBuildLocator.IsRegistered)
-        {
-            Console.WriteLine("Locating MSBuild using MSBuildLocator...");
-            
-            // Try to find MSBuild instances with different query strategies
-            // Strategy 1: Try with default options (stable releases only)
-            var instances = MSBuildLocator.QueryVisualStudioInstances(
-                VisualStudioInstanceQueryOptions.Default
-            ).ToList();
-
-            // Strategy 2: If no instances found, try querying again (sometimes registry needs a moment)
-            // Also try different discovery types if available
-            if (instances.Count == 0)
-            {
-                Console.WriteLine("  No instances found with default query, retrying...");
-                // Retry the query - sometimes the registry lookup needs a moment
-                System.Threading.Thread.Sleep(100);
-                instances = MSBuildLocator.QueryVisualStudioInstances(
-                    VisualStudioInstanceQueryOptions.Default
-                ).ToList();
-            }
-
-            // If MSBuildLocator found instances, register and use the highest version
-            if (instances.Count > 0)
-            {
-                // Use the highest version available
-                var instance = instances.OrderByDescending(i => i.Version).First();
-                MSBuildLocator.RegisterInstance(instance);
-                Console.WriteLine($"✓ MSBuildLocator found and registered MSBuild:");
-                Console.WriteLine($"    Path: {instance.MSBuildPath}");
-                Console.WriteLine($"    Version: {instance.Version}");
-                Console.WriteLine($"    Visual Studio: {instance.VisualStudioRootPath ?? "N/A"}");
-                Console.WriteLine();
-            }
-            else
-            {
-                // MSBuildLocator couldn't find any instances
-                // Check if ToolFinder found MSBuild as a fallback
-                if (_toolsContext != null && _toolsContext.HasTool("msbuild.exe"))
-                {
-                    var msbuildPath = _toolsContext.GetMSBuildPath();
-                    if (msbuildPath != null && File.Exists(msbuildPath))
-                    {
-                        Console.WriteLine("⚠️  Warning: MSBuildLocator could not find Visual Studio instances.");
-                        Console.WriteLine($"   However, ToolFinder found MSBuild at: {msbuildPath}");
-                        Console.WriteLine();
-                        Console.WriteLine("   MSBuildLocator requires Visual Studio to be properly registered in the system.");
-                        Console.WriteLine("   The tool can still generate build scripts, but project parsing may fail.");
-                        Console.WriteLine();
-                        Console.WriteLine("   To fix this:");
-                        Console.WriteLine("   1. Ensure Visual Studio or Build Tools are properly installed");
-                        Console.WriteLine("   2. Try running from 'Developer Command Prompt for VS'");
-                        Console.WriteLine("   3. Repair Visual Studio installation if needed");
-                        Console.WriteLine();
-                        Console.WriteLine("   Continuing anyway (build scripts will use discovered MSBuild path)...");
-                        Console.WriteLine();
-                        
-                        // Don't return error - allow the tool to continue for build script generation
-                        // Project parsing will fail later if MSBuildLocator is truly needed
-                    }
-                }
-                else
-                {
-                    // Neither MSBuildLocator nor ToolFinder found MSBuild
-                    Console.WriteLine("❌ Error: No MSBuild instances found.");
-                    Console.WriteLine();
-                    Console.WriteLine("MSBuildLocator searched for Visual Studio instances but found none.");
-                    Console.WriteLine("ToolFinder also could not locate MSBuild in PATH or common locations.");
-                    Console.WriteLine();
-                    Console.WriteLine("Possible solutions:");
-                    Console.WriteLine("1. Install Visual Studio Build Tools or Visual Studio");
-                    Console.WriteLine("   Download: https://visualstudio.microsoft.com/downloads/");
-                    Console.WriteLine();
-                    Console.WriteLine("2. For Build Tools, ensure 'MSBuild' workload is installed");
-                    Console.WriteLine();
-                    Console.WriteLine("3. Try running 'Developer Command Prompt for VS' or 'Developer PowerShell for VS'");
-                    Console.WriteLine("   These set up the environment correctly for MSBuild");
-                    Console.WriteLine();
-                    Console.WriteLine("4. If Visual Studio is installed, try repairing the installation");
-                    Console.WriteLine("   (Visual Studio Installer > Modify > Repair)");
-                    Console.WriteLine();
-                    Console.WriteLine("5. Use --assume-vs-env flag if running from VS Developer Command Prompt");
-                    return 1;
-                }
-            }
-        }
-        else if (assumeVsEnv)
-        {
-            Console.WriteLine("ℹ️  Skipping MSBuildLocator (--assume-vs-env flag is set)");
-            Console.WriteLine("   Assuming VS Developer Command Prompt environment is configured.");
-            Console.WriteLine();
-        }
-        else if (MSBuildLocator.IsRegistered)
-        {
-            Console.WriteLine("ℹ️  MSBuildLocator is already registered (likely by another component)");
-            Console.WriteLine();
-        }
-
-        if (string.IsNullOrEmpty(solutionPath))
+        if (string.IsNullOrWhiteSpace(options.SolutionPath))
         {
             PrintUsage();
             return 1;
         }
 
-        if (!File.Exists(solutionPath))
+        if (!File.Exists(options.SolutionPath))
         {
-            Console.WriteLine($"Error: Solution file not found: {solutionPath}");
+            Console.WriteLine($"Error: Solution file not found: {options.SolutionPath}");
             return 1;
         }
 
+        // Initialize MSBuildLocator before parsing projects (unless --assume-vs-env)
+        if (!MsBuildBootstrapper.EnsureRegistered(options.AssumeVsEnv, _toolsContext))
+        {
+            return 1;
+        }
+
+        return RunAnalysis(options.SolutionPath, options.AssumeVsEnv, options.AutoInstallPackages);
+    }
+
+    private static ToolsContext DiscoverTools(CliOptions options)
+    {
+        Console.WriteLine("Discovering build tools...");
+
+        string? solutionRoot = null;
+        if (options.Command == CliCommand.AnalyzeSolution && !string.IsNullOrWhiteSpace(options.SolutionPath))
+        {
+            // Even if the file doesn't exist yet, this gives ToolFinder a good starting point.
+            solutionRoot = Path.GetDirectoryName(Path.GetFullPath(options.SolutionPath));
+        }
+
+        var ctx = new ToolsContext
+        {
+            AllTools = ToolFinder.FindAllTools(solutionRoot)
+        };
+
+        var toolCount = ctx.AllTools.Values.Sum(v => v.Count);
+        Console.WriteLine($"Found {toolCount} tool instances across {ctx.AllTools.Count} tool types.");
+
+        if (ctx.HasTool("msbuild.exe"))
+        {
+            Console.WriteLine($"  MSBuild: {ctx.GetMSBuildPath()}");
+        }
+        if (ctx.HasTool("cmake.exe"))
+        {
+            Console.WriteLine($"  CMake: {ctx.GetCmakePath()}");
+        }
+        Console.WriteLine();
+        return ctx;
+    }
+
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages)
+    {
         try
         {
-            // Check if MSBuildLocator is registered (required for project parsing)
-            // Skip check if --assume-vs-env flag is set
             if (!assumeVsEnv && !MSBuildLocator.IsRegistered)
             {
                 Console.WriteLine("❌ Error: MSBuildLocator is not registered. Cannot parse project files.");
-                Console.WriteLine();
-                if (_toolsContext != null && _toolsContext.HasTool("msbuild.exe"))
-                {
-                    Console.WriteLine("Note: MSBuild was found via ToolFinder, but MSBuildLocator requires");
-                    Console.WriteLine("      Visual Studio to be properly registered in the system.");
-                    Console.WriteLine();
-                }
-                Console.WriteLine("Please ensure Visual Studio or Build Tools are properly installed and registered.");
                 Console.WriteLine("Or use --assume-vs-env flag if running from VS Developer Command Prompt.");
                 return 1;
-            }
-            
-            if (assumeVsEnv)
-            {
-                Console.WriteLine("ℹ️  Using --assume-vs-env flag: Assuming VS Developer Command Prompt environment is configured.");
-                Console.WriteLine("   Attempting to use MSBuild API directly...");
-                Console.WriteLine();
-                
-                // Try to use MSBuild API directly - it might work if environment variables are set
-                // The MSBuild API will use the environment if MSBuildLocator isn't registered
-                // This is a best-effort approach
             }
 
             Console.WriteLine($"Loading solution: {solutionPath}");
 
-            // Step 1: Extract project paths from solution
             var projectPaths = SolutionLoader.ExtractProjectsFromSolution(solutionPath);
             Console.WriteLine($"Found {projectPaths.Count} projects.");
 
@@ -244,16 +106,15 @@ class Program
                 return 1;
             }
 
-            // Step 2: Parse each project (continue on errors)
             Console.WriteLine("\nParsing projects...");
             if (!autoInstallPackages)
             {
                 Console.WriteLine("  Note: Automatic package installation is disabled (--no-auto-install-packages)");
             }
-            
+
             var projects = new List<Models.ProjectNode>();
             var failedProjects = new List<(string Path, string Error)>();
-            
+
             foreach (var projectPath in projectPaths)
             {
                 try
@@ -273,75 +134,48 @@ class Program
                 }
                 catch (Exception ex)
                 {
-                    // Catch any unexpected exceptions to ensure parsing continues
-                    var errorMsg = ex.Message;
-                    failedProjects.Add((projectPath, errorMsg));
-                    Console.WriteLine($"    ✗ Error parsing {Path.GetFileName(projectPath)}: {errorMsg}");
-                    Console.WriteLine($"      (Continuing with remaining projects...)");
+                    failedProjects.Add((projectPath, ex.Message));
+                    Console.WriteLine($"    ✗ Error parsing {Path.GetFileName(projectPath)}: {ex.Message}");
+                    Console.WriteLine("      (Continuing with remaining projects...)");
                 }
             }
 
-            Console.WriteLine($"\nParsing Summary:");
-            Console.WriteLine($"  ✓ Successfully parsed: {projects.Count} project(s)");
-            if (failedProjects.Count > 0)
-            {
-                Console.WriteLine($"  ✗ Failed to parse: {failedProjects.Count} project(s)");
-                Console.WriteLine("\nFailed Projects:");
-                foreach (var (path, error) in failedProjects)
-                {
-                    Console.WriteLine($"  - {Path.GetFileName(path)}: {error}");
-                }
-            }
+            PrintParsingSummary(projects.Count, failedProjects);
 
-            // Step 2.5: Print solution summary report (only for successfully parsed projects)
-            if (projects.Count > 0)
-            {
-                PrintSolutionSummary(projects, solutionPath);
-            }
-            else
+            if (projects.Count == 0)
             {
                 Console.WriteLine("\n⚠️  Warning: No projects were successfully parsed. Cannot generate summary or outputs.");
-                if (failedProjects.Count > 0)
-                {
-                    Console.WriteLine("   Please check the errors above and fix the project files.");
-                }
                 return 1;
             }
 
-            // Step 3: Build dependency graph
+            PrintSolutionSummary(projects, solutionPath);
+
             Console.WriteLine("\nBuilding dependency graph...");
             var graph = DependencyGraphBuilder.BuildGraph(projects);
             Console.WriteLine($"  Nodes: {graph.Nodes.Count}");
             Console.WriteLine($"  Edges: {graph.Edges.Count}");
             Console.WriteLine($"  Build Layers: {graph.BuildLayers.Count}");
-
             if (graph.Cycles.Count > 0)
             {
                 Console.WriteLine($"  ⚠️  Circular Dependencies: {graph.Cycles.Count}");
             }
 
-            // Step 4: Generate outputs
             var outputDir = Path.Combine(Path.GetDirectoryName(solutionPath) ?? ".", "output");
             Directory.CreateDirectory(outputDir);
 
             Console.WriteLine("\nGenerating outputs...");
-
-            // JSON output
             var jsonPath = Path.Combine(outputDir, "dependency-tree.json");
             JsonGenerator.Generate(graph, jsonPath);
             Console.WriteLine($"  ✓ Generated: {jsonPath}");
 
-            // MermaidJS output
             var mermaidPath = Path.Combine(outputDir, "dependency-graph.md");
             MermaidGenerator.Generate(graph, mermaidPath);
             Console.WriteLine($"  ✓ Generated: {mermaidPath}");
 
-            // Draw.io output
             var drawioPath = Path.Combine(outputDir, "dependency-graph.drawio");
             DrawioGenerator.Generate(graph, drawioPath);
             Console.WriteLine($"  ✓ Generated: {drawioPath}");
 
-            // Build scripts output (addon feature)
             Console.WriteLine("\nGenerating build scripts...");
             BuildScriptGenerator.GenerateAll(graph, solutionPath, outputDir, "Release", "x64", _toolsContext);
             Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build-layers.json")}");
@@ -351,7 +185,6 @@ class Program
 
             Console.WriteLine("\n✓ Analysis complete!");
             Console.WriteLine($"\nOutput directory: {outputDir}");
-
             return 0;
         }
         catch (Exception ex)
@@ -359,6 +192,21 @@ class Program
             Console.WriteLine($"\nError: {ex.Message}");
             Console.WriteLine(ex.StackTrace);
             return 1;
+        }
+    }
+
+    private static void PrintParsingSummary(int parsedCount, List<(string Path, string Error)> failedProjects)
+    {
+        Console.WriteLine("\nParsing Summary:");
+        Console.WriteLine($"  ✓ Successfully parsed: {parsedCount} project(s)");
+        if (failedProjects.Count == 0)
+            return;
+
+        Console.WriteLine($"  ✗ Failed to parse: {failedProjects.Count} project(s)");
+        Console.WriteLine("\nFailed Projects:");
+        foreach (var (path, error) in failedProjects)
+        {
+            Console.WriteLine($"  - {Path.GetFileName(path)}: {error}");
         }
     }
 
