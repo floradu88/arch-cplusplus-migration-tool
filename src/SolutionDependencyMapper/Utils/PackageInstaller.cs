@@ -13,7 +13,6 @@ public static class PackageInstaller
     private static readonly Dictionary<string, string> CommonMsBuildPackages = new()
     {
         { "Microsoft.Build", "15.1.548" },
-        { "Microsoft.Build.Core.Utilities", "15.1.548" },
         { "Microsoft.Build.Framework", "15.1.548" },
         { "Microsoft.Build.Utilities.Core", "15.1.548" },
         { "Microsoft.Build.Tasks.Core", "15.1.548" },
@@ -25,28 +24,107 @@ public static class PackageInstaller
     /// </summary>
     public static bool IsMissingPackageError(Exception ex)
     {
-        if (ex == null) return false;
+        return GetMissingPackagesFromError(ex).Count > 0;
+    }
 
-        var errorMessage = ex.Message.ToLowerInvariant();
-        var stackTrace = ex.StackTrace?.ToLowerInvariant() ?? "";
+    /// <summary>
+    /// Returns the list of Microsoft.Build-related NuGet packages to install based on the error contents.
+    /// This is intentionally conservative: it only triggers on clear Microsoft.Build* assembly/type load failures.
+    /// </summary>
+    public static IReadOnlyCollection<string> GetMissingPackagesFromError(Exception ex)
+    {
+        if (ex == null) return Array.Empty<string>();
 
-        // Check for common missing package error patterns
-        var patterns = new[]
+        var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var e in EnumerateExceptionChain(ex))
         {
-            "could not load file or assembly",
-            "microsoft.build",
-            "package not found",
-            "nuget",
-            "the type or namespace name",
-            "assembly reference",
-            "missing reference",
-            "could not find",
-            "unable to resolve"
-        };
+            var msg = (e.Message ?? string.Empty);
+            var lower = msg.ToLowerInvariant();
 
-        return patterns.Any(pattern => 
-            errorMessage.Contains(pattern) || 
-            stackTrace.Contains(pattern));
+            // Only trigger on typical runtime load failures (not generic "could not find" noise)
+            var looksLikeLoadFailure =
+                lower.Contains("could not load file or assembly") ||
+                lower.Contains("fileloadexception") ||
+                lower.Contains("filenotfoundexception") ||
+                lower.Contains("could not load type") ||
+                lower.Contains("typeinitializationexception") ||
+                lower.Contains("the type or namespace name") ||
+                lower.Contains("could not resolve type") ||
+                lower.Contains("could not resolve assembly") ||
+                lower.Contains("could not load assembly");
+
+            if (!looksLikeLoadFailure)
+                continue;
+
+            // Only consider errors that mention Microsoft.Build
+            if (!lower.Contains("microsoft.build"))
+                continue;
+
+            // Always include base Microsoft.Build when we detect a Microsoft.Build* load failure.
+            packages.Add("Microsoft.Build");
+
+            // Heuristic: detect which specific assembly is missing and install the matching package(s)
+            // (Most of these map 1:1 to NuGet packages).
+            AddIfMentioned(packages, lower, "microsoft.build.framework", "Microsoft.Build.Framework");
+            AddIfMentioned(packages, lower, "microsoft.build.utilities.core", "Microsoft.Build.Utilities.Core");
+            AddIfMentioned(packages, lower, "microsoft.build.tasks.core", "Microsoft.Build.Tasks.Core");
+            AddIfMentioned(packages, lower, "microsoft.build.engine", "Microsoft.Build.Engine");
+
+            // Sometimes message contains short names or types that imply dependencies
+            if (lower.Contains("microsoft.build.evaluation") || lower.Contains("microsoft.build.execution"))
+            {
+                packages.Add("Microsoft.Build"); // already
+                packages.Add("Microsoft.Build.Framework");
+            }
+        }
+
+        return packages.Count == 0 ? Array.Empty<string>() : packages.ToList();
+    }
+
+    /// <summary>
+    /// Attempts to fix a project by installing missing packages inferred from the exception and restoring.
+    /// </summary>
+    public static bool FixProjectPackagesForError(string projectPath, Exception ex)
+    {
+        if (!File.Exists(projectPath))
+            return false;
+
+        var packagesToInstall = GetMissingPackagesFromError(ex);
+        if (packagesToInstall.Count == 0)
+            return false;
+
+        bool packagesFixed = false;
+
+        if (InstallMsBuildPackages(projectPath, packagesToInstall))
+        {
+            packagesFixed = true;
+        }
+
+        // Always try to restore packages after edits
+        if (RestorePackages(projectPath))
+        {
+            packagesFixed = true;
+        }
+
+        return packagesFixed;
+    }
+
+    private static IEnumerable<Exception> EnumerateExceptionChain(Exception ex)
+    {
+        for (var cur = ex; cur != null; cur = cur.InnerException!)
+        {
+            yield return cur;
+            if (cur.InnerException == null) break;
+        }
+    }
+
+    private static void AddIfMentioned(HashSet<string> packages, string lowerMessage, string needle, string packageName)
+    {
+        if (lowerMessage.Contains(needle))
+        {
+            packages.Add(packageName);
+        }
     }
 
     /// <summary>

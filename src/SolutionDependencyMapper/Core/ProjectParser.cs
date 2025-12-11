@@ -105,7 +105,7 @@ public class ProjectParser
                         Console.WriteLine($"     Attempting to install missing Microsoft.Build packages...");
 
                         // Try to fix the project by installing packages and restoring
-                        if (PackageInstaller.FixProjectPackages(projectPath))
+                        if (PackageInstaller.FixProjectPackagesForError(projectPath, ex))
                         {
                             retryCount++;
                             Console.WriteLine($"     Retrying parse (attempt {retryCount + 1}/{maxRetries + 1})...");
