@@ -206,7 +206,7 @@ class Program
             foreach (var projectPath in projectPaths)
             {
                 Console.WriteLine($"  Parsing: {Path.GetFileName(projectPath)}");
-                var project = ProjectParser.ParseProject(projectPath);
+                var project = ProjectParser.ParseProject(projectPath, assumeVsEnv);
                 if (project != null)
                 {
                     projects.Add(project);
@@ -214,6 +214,9 @@ class Program
             }
 
             Console.WriteLine($"Successfully parsed {projects.Count} projects.");
+
+            // Step 2.5: Print solution summary report
+            PrintSolutionSummary(projects, solutionPath);
 
             // Step 3: Build dependency graph
             Console.WriteLine("\nBuilding dependency graph...");
@@ -290,6 +293,73 @@ class Program
         Console.WriteLine("=== Summary ===");
         Console.WriteLine($"Total tools found: {tools.Values.Sum(v => v.Count)}");
         Console.WriteLine($"Unique tool types: {tools.Count}");
+    }
+
+    private static void PrintSolutionSummary(List<Models.ProjectNode> projects, string solutionPath)
+    {
+        Console.WriteLine("\n" + new string('=', 70));
+        Console.WriteLine("SOLUTION SUMMARY REPORT");
+        Console.WriteLine(new string('=', 70));
+        Console.WriteLine($"Solution: {Path.GetFileName(solutionPath)}");
+        Console.WriteLine($"Total Projects: {projects.Count}");
+        Console.WriteLine();
+
+        // Group by project type
+        var projectsByType = projects
+            .GroupBy(p => p.ProjectType ?? "Unknown")
+            .OrderBy(g => g.Key);
+
+        Console.WriteLine("Project Types:");
+        foreach (var group in projectsByType)
+        {
+            Console.WriteLine($"  {group.Key}: {group.Count()} project(s)");
+        }
+        Console.WriteLine();
+
+        // Group by ToolsVersion
+        var projectsByToolsVersion = projects
+            .Where(p => !string.IsNullOrWhiteSpace(p.ToolsVersion))
+            .GroupBy(p => p.ToolsVersion!)
+            .OrderBy(g => g.Key);
+
+        if (projectsByToolsVersion.Any())
+        {
+            Console.WriteLine("ToolsVersion Distribution:");
+            foreach (var group in projectsByToolsVersion)
+            {
+                Console.WriteLine($"  {group.Key}: {group.Count()} project(s)");
+            }
+            Console.WriteLine();
+        }
+
+        // Group by output type
+        var projectsByOutputType = projects
+            .GroupBy(p => p.OutputType)
+            .OrderBy(g => g.Key);
+
+        Console.WriteLine("Output Types:");
+        foreach (var group in projectsByOutputType)
+        {
+            Console.WriteLine($"  {group.Key}: {group.Count()} project(s)");
+        }
+        Console.WriteLine();
+
+        // Detailed project list
+        Console.WriteLine("Project Details:");
+        Console.WriteLine(new string('-', 70));
+        Console.WriteLine($"{"Project Name",-30} {"Type",-15} {"ToolsVersion",-12} {"Output",-10}");
+        Console.WriteLine(new string('-', 70));
+
+        foreach (var project in projects.OrderBy(p => p.Name))
+        {
+            var projectType = project.ProjectType ?? "Unknown";
+            var toolsVersion = project.ToolsVersion ?? "N/A";
+            var outputType = project.OutputType;
+            
+            Console.WriteLine($"{project.Name,-30} {projectType,-15} {toolsVersion,-12} {outputType,-10}");
+        }
+        Console.WriteLine(new string('-', 70));
+        Console.WriteLine();
     }
 
     private static void PrintUsage()

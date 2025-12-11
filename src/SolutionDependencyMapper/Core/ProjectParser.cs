@@ -1,6 +1,7 @@
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Locator;
 using SolutionDependencyMapper.Models;
+using SolutionDependencyMapper.Utils;
 
 namespace SolutionDependencyMapper.Core;
 
@@ -27,11 +28,13 @@ public class ProjectParser
 
     /// <summary>
     /// Parses a project file and extracts all relevant information.
+    /// Includes retry logic with automatic package installation for missing Microsoft.Build dependencies.
     /// </summary>
     /// <param name="projectPath">Path to the project file</param>
     /// <param name="assumeVsEnv">If true, skip MSBuildLocator check (assumes VS environment is configured)</param>
+    /// <param name="maxRetries">Maximum number of retry attempts after package installation (default: 1)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1)
     {
         if (!File.Exists(projectPath))
         {
@@ -39,49 +42,100 @@ public class ProjectParser
             return null;
         }
 
-        try
+        int retryCount = 0;
+        Exception? lastException = null;
+
+        while (retryCount <= maxRetries)
         {
-            EnsureMsBuildRegistered(assumeVsEnv);
-
-            var projectCollection = new ProjectCollection();
-            var project = projectCollection.LoadProject(projectPath);
-
-            var node = new ProjectNode
+            try
             {
-                Path = projectPath,
-                Name = project.GetPropertyValue("ProjectName") ?? Path.GetFileNameWithoutExtension(projectPath)
-            };
+                EnsureMsBuildRegistered(assumeVsEnv);
 
-            // Extract output type
-            node.OutputType = ExtractOutputType(project);
-            
-            // Extract target information
-            node.TargetName = project.GetPropertyValue("TargetName") ?? node.Name;
-            node.TargetExtension = ExtractTargetExtension(project, node.OutputType);
+                var projectCollection = new ProjectCollection();
+                var project = projectCollection.LoadProject(projectPath);
 
-            // Extract output binary path
-            node.OutputBinary = ExtractOutputBinary(project, node.TargetName, node.TargetExtension);
+                var node = new ProjectNode
+                {
+                    Path = projectPath,
+                    Name = project.GetPropertyValue("ProjectName") ?? Path.GetFileNameWithoutExtension(projectPath)
+                };
 
-            // Extract project references
-            node.ProjectDependencies = ExtractProjectReferences(project, projectPath);
+                // Extract project type from file extension
+                node.ProjectType = ExtractProjectType(projectPath);
+                
+                // Extract ToolsVersion
+                node.ToolsVersion = ExtractToolsVersion(project, projectPath);
 
-            // Extract external dependencies
-            node.ExternalDependencies = ExtractExternalDependencies(project);
+                // Extract output type
+                node.OutputType = ExtractOutputType(project);
+                
+                // Extract target information
+                node.TargetName = project.GetPropertyValue("TargetName") ?? node.Name;
+                node.TargetExtension = ExtractTargetExtension(project, node.OutputType);
 
-            // Extract additional properties
-            node.Properties = ExtractProperties(project);
+                // Extract output binary path
+                node.OutputBinary = ExtractOutputBinary(project, node.TargetName, node.TargetExtension);
 
-            // Extract TargetFramework for .NET projects
-            node.TargetFramework = ExtractTargetFramework(project);
+                // Extract project references
+                node.ProjectDependencies = ExtractProjectReferences(project, projectPath);
 
-            projectCollection.UnloadProject(project);
-            return node;
+                // Extract external dependencies
+                node.ExternalDependencies = ExtractExternalDependencies(project);
+
+                // Extract additional properties
+                node.Properties = ExtractProperties(project);
+
+                // Extract TargetFramework for .NET projects
+                node.TargetFramework = ExtractTargetFramework(project);
+
+                projectCollection.UnloadProject(project);
+                return node;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+
+                // Check if this is a missing package error and we haven't exceeded retries
+                if (retryCount < maxRetries && PackageInstaller.IsMissingPackageError(ex))
+                {
+                    Console.WriteLine($"  ⚠️  Detected missing package error for {Path.GetFileName(projectPath)}");
+                    Console.WriteLine($"     Attempting to install missing Microsoft.Build packages...");
+
+                    // Try to fix the project by installing packages and restoring
+                    if (PackageInstaller.FixProjectPackages(projectPath))
+                    {
+                        retryCount++;
+                        Console.WriteLine($"     Retrying parse (attempt {retryCount + 1}/{maxRetries + 1})...");
+                        
+                        // Wait a bit for file system to catch up
+                        System.Threading.Thread.Sleep(500);
+                        continue;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"     Could not automatically fix packages. Error: {ex.Message}");
+                        break;
+                    }
+                }
+                else
+                {
+                    // Not a package error or retries exhausted
+                    Console.WriteLine($"Error parsing project {projectPath}: {ex.Message}");
+                    if (retryCount > 0)
+                    {
+                        Console.WriteLine($"  (Failed after {retryCount + 1} attempt(s))");
+                    }
+                    return null;
+                }
+            }
         }
-        catch (Exception ex)
+
+        // If we get here, all retries failed
+        if (lastException != null)
         {
-            Console.WriteLine($"Error parsing project {projectPath}: {ex.Message}");
-            return null;
+            Console.WriteLine($"Error parsing project {projectPath} after {retryCount + 1} attempt(s): {lastException.Message}");
         }
+        return null;
     }
 
     /// <summary>
@@ -237,6 +291,93 @@ public class ProjectParser
 
         // For .vcxproj files, return null (not applicable)
         return null;
+    }
+
+    /// <summary>
+    /// Extracts the project type based on file extension.
+    /// </summary>
+    private static string ExtractProjectType(string projectPath)
+    {
+        var extension = Path.GetExtension(projectPath).ToLowerInvariant();
+        return extension switch
+        {
+            ".csproj" => "C# Project",
+            ".vcxproj" => "C++ Project",
+            ".vbproj" => "VB.NET Project",
+            ".fsproj" => "F# Project",
+            ".vcproj" => "C++ Project (Legacy)",
+            ".dbproj" => "Database Project",
+            ".shproj" => "Shared Project",
+            ".sqlproj" => "SQL Server Project",
+            ".pyproj" => "Python Project",
+            _ => $"Unknown ({extension})"
+        };
+    }
+
+    /// <summary>
+    /// Extracts the MSBuild ToolsVersion from the project file.
+    /// </summary>
+    private static string? ExtractToolsVersion(Project project, string projectPath)
+    {
+        // Try to get ToolsVersion from the project object
+        var toolsVersion = project.GetPropertyValue("MSBuildToolsVersion");
+        if (!string.IsNullOrWhiteSpace(toolsVersion))
+        {
+            return toolsVersion;
+        }
+
+        // Try to get from ToolsVersion property
+        toolsVersion = project.GetPropertyValue("ToolsVersion");
+        if (!string.IsNullOrWhiteSpace(toolsVersion))
+        {
+            return toolsVersion;
+        }
+
+        // Try to read directly from XML file
+        try
+        {
+            var xmlContent = File.ReadAllText(projectPath);
+            
+            // Try to match ToolsVersion attribute in Project tag
+            var toolsVersionMatch = System.Text.RegularExpressions.Regex.Match(
+                xmlContent,
+                @"<Project[^>]*ToolsVersion\s*=\s*""([^""]+)""",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+            
+            if (toolsVersionMatch.Success)
+            {
+                return toolsVersionMatch.Groups[1].Value;
+            }
+
+            // Check for SDK-style projects (they use Current or don't specify)
+            if (xmlContent.Contains("<Project Sdk="))
+            {
+                return "Current";
+            }
+            
+            // For .vcxproj files, check for DefaultToolsVersion
+            if (projectPath.EndsWith(".vcxproj", StringComparison.OrdinalIgnoreCase))
+            {
+                var defaultToolsVersionMatch = System.Text.RegularExpressions.Regex.Match(
+                    xmlContent,
+                    @"DefaultToolsVersion\s*=\s*""([^""]+)""",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                );
+                
+                if (defaultToolsVersionMatch.Success)
+                {
+                    return defaultToolsVersionMatch.Groups[1].Value;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors reading file
+        }
+
+        // Default for modern projects
+        return "Current";
     }
 
     /// <summary>

@@ -29,6 +29,16 @@ public class MermaidGenerator
             var nodeId = SanitizeNodeId(node.Name);
             var label = $"{node.Name}<br/>({node.OutputType})";
             
+            // Add project type and ToolsVersion
+            if (!string.IsNullOrWhiteSpace(node.ProjectType))
+            {
+                label += $"<br/>{node.ProjectType}";
+            }
+            if (!string.IsNullOrWhiteSpace(node.ToolsVersion))
+            {
+                label += $"<br/>ToolsVersion: {node.ToolsVersion}";
+            }
+            
             // Add migration score to label if available
             if (node.MigrationScore.HasValue)
             {
@@ -129,6 +139,42 @@ public class MermaidGenerator
         }
 
         sb.AppendLine();
+        sb.AppendLine("## Project Types and ToolsVersion");
+        sb.AppendLine();
+        
+        // Group by project type
+        var projectsByType = graph.Nodes.Values
+            .Where(p => !string.IsNullOrWhiteSpace(p.ProjectType))
+            .GroupBy(p => p.ProjectType!)
+            .OrderBy(g => g.Key);
+
+        if (projectsByType.Any())
+        {
+            sb.AppendLine("### Project Types");
+            foreach (var group in projectsByType)
+            {
+                sb.AppendLine($"- **{group.Key}**: {group.Count()} project(s)");
+            }
+            sb.AppendLine();
+        }
+
+        // Group by ToolsVersion
+        var projectsByToolsVersion = graph.Nodes.Values
+            .Where(p => !string.IsNullOrWhiteSpace(p.ToolsVersion))
+            .GroupBy(p => p.ToolsVersion!)
+            .OrderBy(g => g.Key);
+
+        if (projectsByToolsVersion.Any())
+        {
+            sb.AppendLine("### ToolsVersion Distribution");
+            foreach (var group in projectsByToolsVersion)
+            {
+                sb.AppendLine($"- **{group.Key}**: {group.Count()} project(s)");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
         sb.AppendLine("## Build Layers");
         sb.AppendLine();
         
@@ -139,7 +185,16 @@ public class MermaidGenerator
             {
                 if (graph.Nodes.TryGetValue(projectPath, out var project))
                 {
-                    sb.AppendLine($"- {project.Name} ({project.OutputType})");
+                    var projectInfo = $"{project.Name} ({project.OutputType})";
+                    if (!string.IsNullOrWhiteSpace(project.ProjectType))
+                    {
+                        projectInfo += $" - {project.ProjectType}";
+                    }
+                    if (!string.IsNullOrWhiteSpace(project.ToolsVersion))
+                    {
+                        projectInfo += $" [ToolsVersion: {project.ToolsVersion}]";
+                    }
+                    sb.AppendLine($"- {projectInfo}");
                 }
             }
             sb.AppendLine();

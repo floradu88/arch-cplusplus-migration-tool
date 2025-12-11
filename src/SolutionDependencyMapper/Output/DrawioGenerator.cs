@@ -77,6 +77,17 @@ public class DrawioGenerator
 
             var position = nodePositions[node.Path];
             var label = $"{node.Name}\n({node.OutputType})";
+            
+            // Add project type and ToolsVersion to label
+            if (!string.IsNullOrWhiteSpace(node.ProjectType))
+            {
+                label += $"\n{node.ProjectType}";
+            }
+            if (!string.IsNullOrWhiteSpace(node.ToolsVersion))
+            {
+                label += $"\nToolsVersion: {node.ToolsVersion}";
+            }
+            
             var style = GetNodeStyle(node.OutputType);
 
             var cell = new XElement("mxCell",

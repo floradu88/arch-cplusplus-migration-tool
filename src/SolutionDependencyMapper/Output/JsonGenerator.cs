@@ -26,6 +26,8 @@ public class JsonGenerator
         {
             p.Name,
             Path = p.Path,
+            ProjectType = p.ProjectType,
+            ToolsVersion = p.ToolsVersion,
             OutputType = p.OutputType,
             OutputBinary = p.OutputBinary,
             TargetName = p.TargetName,
