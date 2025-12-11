@@ -113,6 +113,31 @@ This command searches for tools in:
 - Common Windows installation locations
 - Visual Studio directories (using vswhere.exe)
 
+#### `--auto-install-packages` or `--auto-packages`
+Enable automatic installation of missing Microsoft.Build packages (default: enabled).
+
+When a project fails to parse due to missing Microsoft.Build packages, the tool will:
+1. Automatically detect the missing package error
+2. Install Microsoft.Build 15.1.548 and related packages to the project file
+3. Run `dotnet restore` to restore packages
+4. Retry parsing the project
+
+```bash
+dotnet run -- "MySolution.sln" --auto-install-packages
+```
+
+#### `--no-auto-install-packages` or `--no-auto-packages`
+Disable automatic package installation. Projects with missing packages will fail without attempting to fix them.
+
+```bash
+dotnet run -- "MySolution.sln" --no-auto-install-packages
+```
+
+**Use cases:**
+- When you want to manually fix package issues
+- When you don't want the tool to modify project files
+- For auditing purposes to see which projects have package issues
+
 ### Example Output
 
 When you run the tool, you'll see progress information:

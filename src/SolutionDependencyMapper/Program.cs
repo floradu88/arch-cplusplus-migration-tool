@@ -44,6 +44,7 @@ class Program
 
         // Check for special commands and flags BEFORE MSBuildLocator initialization
         bool assumeVsEnv = false;
+        bool autoInstallPackages = true; // Default: auto-install packages
         string? solutionPath = null;
         
         if (args.Length > 0)
@@ -55,15 +56,34 @@ class Program
                 return 0;
             }
             
-            // Check for --assume-vs-env flag
+            // Check for flags
             var argsList = args.ToList();
+            
+            // Check for --assume-vs-env flag
             if (argsList.Contains("--assume-vs-env") || argsList.Contains("--vs-env"))
             {
                 assumeVsEnv = true;
                 argsList.Remove("--assume-vs-env");
                 argsList.Remove("--vs-env");
-                args = argsList.ToArray();
             }
+            
+            // Check for --no-auto-install-packages flag (disables auto-installation)
+            if (argsList.Contains("--no-auto-install-packages") || argsList.Contains("--no-auto-packages"))
+            {
+                autoInstallPackages = false;
+                argsList.Remove("--no-auto-install-packages");
+                argsList.Remove("--no-auto-packages");
+            }
+            
+            // Check for --auto-install-packages flag (explicitly enables, though it's default)
+            if (argsList.Contains("--auto-install-packages") || argsList.Contains("--auto-packages"))
+            {
+                autoInstallPackages = true;
+                argsList.Remove("--auto-install-packages");
+                argsList.Remove("--auto-packages");
+            }
+            
+            args = argsList.ToArray();
             
             // Get solution path (first non-flag argument)
             solutionPath = args.FirstOrDefault(arg => !arg.StartsWith("--") && File.Exists(arg));
@@ -202,6 +222,11 @@ class Program
 
             // Step 2: Parse each project (continue on errors)
             Console.WriteLine("\nParsing projects...");
+            if (!autoInstallPackages)
+            {
+                Console.WriteLine("  Note: Automatic package installation is disabled (--no-auto-install-packages)");
+            }
+            
             var projects = new List<Models.ProjectNode>();
             var failedProjects = new List<(string Path, string Error)>();
             
@@ -210,7 +235,7 @@ class Program
                 try
                 {
                     Console.WriteLine($"  Parsing: {Path.GetFileName(projectPath)}");
-                    var project = ProjectParser.ParseProject(projectPath, assumeVsEnv);
+                    var project = ProjectParser.ParseProject(projectPath, assumeVsEnv, maxRetries: 1, autoInstallPackages: autoInstallPackages);
                     if (project != null)
                     {
                         projects.Add(project);
@@ -421,6 +446,13 @@ class Program
         Console.WriteLine("  --assume-vs-env         Assume VS Developer Command Prompt environment is configured");
         Console.WriteLine("                          Skips MSBuildLocator registration, uses MSBuild/dotnet directly");
         Console.WriteLine("                          Use this when running from VS2022 Developer Command Prompt");
+        Console.WriteLine();
+        Console.WriteLine("  --auto-install-packages Automatically install missing Microsoft.Build packages (default: enabled)");
+        Console.WriteLine("                          When a project fails due to missing packages, automatically installs");
+        Console.WriteLine("                          Microsoft.Build 15.1.548 and related packages, then retries parsing");
+        Console.WriteLine();
+        Console.WriteLine("  --no-auto-install-packages  Disable automatic package installation");
+        Console.WriteLine("                          Projects with missing packages will fail without attempting to fix them");
         Console.WriteLine();
         Console.WriteLine("This tool analyzes a Visual Studio solution and generates:");
         Console.WriteLine("  - dependency-tree.json (machine-readable dependency data)");

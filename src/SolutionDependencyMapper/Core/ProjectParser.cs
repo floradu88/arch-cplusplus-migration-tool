@@ -33,8 +33,9 @@ public class ProjectParser
     /// <param name="projectPath">Path to the project file</param>
     /// <param name="assumeVsEnv">If true, skip MSBuildLocator check (assumes VS environment is configured)</param>
     /// <param name="maxRetries">Maximum number of retry attempts after package installation (default: 1)</param>
+    /// <param name="autoInstallPackages">If true, automatically install missing Microsoft.Build packages (default: true)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true)
     {
         if (!File.Exists(projectPath))
         {
@@ -98,22 +99,32 @@ public class ProjectParser
                 // Check if this is a missing package error and we haven't exceeded retries
                 if (retryCount < maxRetries && PackageInstaller.IsMissingPackageError(ex))
                 {
-                    Console.WriteLine($"  ⚠️  Detected missing package error for {Path.GetFileName(projectPath)}");
-                    Console.WriteLine($"     Attempting to install missing Microsoft.Build packages...");
-
-                    // Try to fix the project by installing packages and restoring
-                    if (PackageInstaller.FixProjectPackages(projectPath))
+                    if (autoInstallPackages)
                     {
-                        retryCount++;
-                        Console.WriteLine($"     Retrying parse (attempt {retryCount + 1}/{maxRetries + 1})...");
-                        
-                        // Wait a bit for file system to catch up
-                        System.Threading.Thread.Sleep(500);
-                        continue;
+                        Console.WriteLine($"  ⚠️  Detected missing package error for {Path.GetFileName(projectPath)}");
+                        Console.WriteLine($"     Attempting to install missing Microsoft.Build packages...");
+
+                        // Try to fix the project by installing packages and restoring
+                        if (PackageInstaller.FixProjectPackages(projectPath))
+                        {
+                            retryCount++;
+                            Console.WriteLine($"     Retrying parse (attempt {retryCount + 1}/{maxRetries + 1})...");
+                            
+                            // Wait a bit for file system to catch up
+                            System.Threading.Thread.Sleep(500);
+                            continue;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"     Could not automatically fix packages. Error: {ex.Message}");
+                            break;
+                        }
                     }
                     else
                     {
-                        Console.WriteLine($"     Could not automatically fix packages. Error: {ex.Message}");
+                        // Auto-installation is disabled, just report the error
+                        Console.WriteLine($"  ⚠️  Detected missing package error for {Path.GetFileName(projectPath)}");
+                        Console.WriteLine($"     Automatic package installation is disabled. Use --auto-install-packages to enable.");
                         break;
                     }
                 }
