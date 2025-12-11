@@ -78,6 +78,16 @@ Or if you've built it:
 dotnet SolutionDependencyMapper.dll "C:\Projects\MySolution\MySolution.sln"
 ```
 
+### Using from VS Developer Command Prompt
+
+If you're running from VS2022 Developer Command Prompt (where MSBuild/dotnet are already configured), you can use the `--assume-vs-env` flag to skip MSBuildLocator registration:
+
+```bash
+dotnet run -- "C:\Projects\MySolution\MySolution.sln" --assume-vs-env
+```
+
+This flag tells the tool to use MSBuild/dotnet directly from the environment, bypassing MSBuildLocator registration checks.
+
 ### Example Output
 
 When you run the tool, you'll see progress information:

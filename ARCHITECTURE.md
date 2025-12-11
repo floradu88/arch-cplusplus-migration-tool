@@ -239,6 +239,7 @@ The Solution Dependency Mapper is a cross-platform .NET 8.0 tool that automatica
 | ADDON-003 | Cycle Detection | ✅ **Implemented** | Detect and report circular dependencies |
 | ADDON-004 | CMake Skeleton Generation | ⏳ **Future** | Generate CMakeLists.txt from dependency graph |
 | ADDON-005 | Tool Discovery | ✅ **Implemented** | Automatically discover Visual Studio tools, CMake, and C++ build tools at startup |
+| ADDON-006 | VS Environment Mode | ✅ **Implemented** | `--assume-vs-env` flag to skip MSBuildLocator and use MSBuild/dotnet directly from VS Developer Command Prompt environment |
 
 ### Future Extensions
 

@@ -42,19 +42,37 @@ class Program
         }
         Console.WriteLine();
 
-        // Check for special commands BEFORE MSBuildLocator initialization
+        // Check for special commands and flags BEFORE MSBuildLocator initialization
+        bool assumeVsEnv = false;
+        string? solutionPath = null;
+        
         if (args.Length > 0)
         {
+            // Check for --find-tools command
             if (args[0] == "--find-tools" || args[0] == "--tools" || args[0] == "-t")
             {
                 FindAndPrintTools(args.Length > 1 ? args[1] : null);
                 return 0;
             }
+            
+            // Check for --assume-vs-env flag
+            var argsList = args.ToList();
+            if (argsList.Contains("--assume-vs-env") || argsList.Contains("--vs-env"))
+            {
+                assumeVsEnv = true;
+                argsList.Remove("--assume-vs-env");
+                argsList.Remove("--vs-env");
+                args = argsList.ToArray();
+            }
+            
+            // Get solution path (first non-flag argument)
+            solutionPath = args.FirstOrDefault(arg => !arg.StartsWith("--") && File.Exists(arg));
         }
 
         // Initialize MSBuildLocator using discovered tools
         // (Only needed for solution analysis, not for --find-tools)
-        if (!MSBuildLocator.IsRegistered)
+        // Skip if --assume-vs-env flag is set (assumes environment is already configured)
+        if (!assumeVsEnv && !MSBuildLocator.IsRegistered)
         {
             // Try to find MSBuild instances with different query options
             var instances = MSBuildLocator.QueryVisualStudioInstances(
@@ -128,13 +146,12 @@ class Program
             Console.WriteLine($"  MSBuild Version: {instance.Version}");
         }
 
-        if (args.Length == 0)
+        if (string.IsNullOrEmpty(solutionPath))
         {
             PrintUsage();
             return 1;
         }
 
-        var solutionPath = args[0];
         if (!File.Exists(solutionPath))
         {
             Console.WriteLine($"Error: Solution file not found: {solutionPath}");
@@ -144,7 +161,8 @@ class Program
         try
         {
             // Check if MSBuildLocator is registered (required for project parsing)
-            if (!MSBuildLocator.IsRegistered)
+            // Skip check if --assume-vs-env flag is set
+            if (!assumeVsEnv && !MSBuildLocator.IsRegistered)
             {
                 Console.WriteLine("❌ Error: MSBuildLocator is not registered. Cannot parse project files.");
                 Console.WriteLine();
@@ -155,7 +173,19 @@ class Program
                     Console.WriteLine();
                 }
                 Console.WriteLine("Please ensure Visual Studio or Build Tools are properly installed and registered.");
+                Console.WriteLine("Or use --assume-vs-env flag if running from VS Developer Command Prompt.");
                 return 1;
+            }
+            
+            if (assumeVsEnv)
+            {
+                Console.WriteLine("ℹ️  Using --assume-vs-env flag: Assuming VS Developer Command Prompt environment is configured.");
+                Console.WriteLine("   Attempting to use MSBuild API directly...");
+                Console.WriteLine();
+                
+                // Try to use MSBuild API directly - it might work if environment variables are set
+                // The MSBuild API will use the environment if MSBuildLocator isn't registered
+                // This is a best-effort approach
             }
 
             Console.WriteLine($"Loading solution: {solutionPath}");
@@ -268,13 +298,18 @@ class Program
         Console.WriteLine("==========================");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  SolutionDependencyMapper <path-to-solution.sln>");
+        Console.WriteLine("  SolutionDependencyMapper <path-to-solution.sln> [--assume-vs-env]");
         Console.WriteLine("  SolutionDependencyMapper --find-tools [project-root]");
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  <path-to-solution.sln>  Analyze solution and generate outputs");
         Console.WriteLine("  --find-tools            Find all Visual Studio tools, CMake, and C++ tools");
         Console.WriteLine("                          Optional: specify project root directory to search");
+        Console.WriteLine();
+        Console.WriteLine("Flags:");
+        Console.WriteLine("  --assume-vs-env         Assume VS Developer Command Prompt environment is configured");
+        Console.WriteLine("                          Skips MSBuildLocator registration, uses MSBuild/dotnet directly");
+        Console.WriteLine("                          Use this when running from VS2022 Developer Command Prompt");
         Console.WriteLine();
         Console.WriteLine("This tool analyzes a Visual Studio solution and generates:");
         Console.WriteLine("  - dependency-tree.json (machine-readable dependency data)");

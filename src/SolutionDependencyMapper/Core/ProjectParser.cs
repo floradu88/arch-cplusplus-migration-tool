@@ -12,13 +12,15 @@ public class ProjectParser
     /// <summary>
     /// Ensures MSBuild is registered before parsing projects.
     /// Note: MSBuildLocator should be initialized in Program.Main before this is called.
+    /// If --assume-vs-env flag is used, this check is relaxed to allow direct MSBuild API usage.
     /// </summary>
-    private static void EnsureMsBuildRegistered()
+    private static void EnsureMsBuildRegistered(bool assumeVsEnv = false)
     {
-        if (!MSBuildLocator.IsRegistered)
+        if (!assumeVsEnv && !MSBuildLocator.IsRegistered)
         {
             throw new InvalidOperationException(
-                "MSBuildLocator is not registered. This should be initialized in Program.Main before parsing projects."
+                "MSBuildLocator is not registered. This should be initialized in Program.Main before parsing projects. " +
+                "Or use --assume-vs-env flag if running from VS Developer Command Prompt."
             );
         }
     }
@@ -27,8 +29,9 @@ public class ProjectParser
     /// Parses a project file and extracts all relevant information.
     /// </summary>
     /// <param name="projectPath">Path to the project file</param>
+    /// <param name="assumeVsEnv">If true, skip MSBuildLocator check (assumes VS environment is configured)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false)
     {
         if (!File.Exists(projectPath))
         {
@@ -38,7 +41,7 @@ public class ProjectParser
 
         try
         {
-            EnsureMsBuildRegistered();
+            EnsureMsBuildRegistered(assumeVsEnv);
 
             var projectCollection = new ProjectCollection();
             var project = projectCollection.LoadProject(projectPath);
