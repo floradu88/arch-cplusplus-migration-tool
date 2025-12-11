@@ -30,6 +30,7 @@ public class JsonGenerator
             OutputBinary = p.OutputBinary,
             TargetName = p.TargetName,
             TargetExtension = p.TargetExtension,
+            TargetFramework = p.TargetFramework,
             ProjectDependencies = p.ProjectDependencies,
             ExternalDependencies = p.ExternalDependencies,
             Properties = p.Properties,
