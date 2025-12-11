@@ -11,7 +11,8 @@ public sealed record CliOptions(
     string? SolutionPath,
     string? FindToolsRoot,
     bool AssumeVsEnv,
-    bool AutoInstallPackages
+    bool AutoInstallPackages,
+    bool PerConfigReferences
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -21,7 +22,8 @@ public sealed record CliOptions(
             SolutionPath: null,
             FindToolsRoot: null,
             AssumeVsEnv: false,
-            AutoInstallPackages: true
+            AutoInstallPackages: true,
+            PerConfigReferences: false
         );
         error = null;
 
@@ -64,6 +66,20 @@ public sealed record CliOptions(
             argsList.Remove("--auto-install-packages");
             argsList.Remove("--auto-packages");
             options = options with { AutoInstallPackages = true };
+        }
+
+        if (argsList.Contains("--per-config-refs") || argsList.Contains("--per-config-references"))
+        {
+            argsList.Remove("--per-config-refs");
+            argsList.Remove("--per-config-references");
+            options = options with { PerConfigReferences = true };
+        }
+
+        if (argsList.Contains("--no-per-config-refs") || argsList.Contains("--no-per-config-references"))
+        {
+            argsList.Remove("--no-per-config-refs");
+            argsList.Remove("--no-per-config-references");
+            options = options with { PerConfigReferences = false };
         }
 
         // First remaining arg is the solution path (can be non-existent; validate later)

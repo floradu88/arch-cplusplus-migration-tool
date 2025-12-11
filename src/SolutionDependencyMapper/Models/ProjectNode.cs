@@ -47,6 +47,9 @@ public class ProjectNode
     // Solution-level configuration mapping (from .sln ProjectConfigurationPlatforms)
     public string? SolutionProjectGuid { get; set; }
     public List<SolutionConfigurationMapping> SolutionConfigurationMappings { get; set; } = new();
+
+    // Per-configuration/platform reference snapshots (optional; can be expensive on large solutions)
+    public List<ProjectConfigurationSnapshot> ConfigurationSnapshots { get; set; } = new();
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }

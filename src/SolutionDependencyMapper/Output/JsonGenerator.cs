@@ -74,6 +74,25 @@ public class JsonGenerator
                 m.Build,
                 m.Deploy
             }),
+
+            ConfigurationSnapshots = p.ConfigurationSnapshots.Select(s => new
+            {
+                s.Configuration,
+                s.Platform,
+                Key = s.Key,
+                s.ProjectDependencies,
+                NuGetPackageReferences = s.NuGetPackageReferences.Select(x => new { x.Id, x.Version, x.PrivateAssets, x.IncludeAssets, x.ExcludeAssets }),
+                s.FrameworkReferences,
+                s.AssemblyReferences,
+                s.ComReferences,
+                s.AnalyzerReferences,
+                s.NativeLibraries,
+                s.NativeDelayLoadDlls,
+                s.NativeLibraryDirectories,
+                s.IncludeDirectories,
+                s.HeaderFiles,
+                ReferenceValidationIssues = s.ReferenceValidationIssues.Select(i => new { i.Category, i.Reference, i.ResolvedPath, i.Details })
+            }),
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

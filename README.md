@@ -134,6 +134,15 @@ Disable automatic package installation. Projects with missing packages will fail
 dotnet run -- "MySolution.sln" --no-auto-install-packages
 ```
 
+#### `--per-config-refs` (optional)
+Capture **per-Configuration|Platform** reference snapshots by evaluating each project multiple times (one per config/platform).
+
+This is useful when references differ between Debug/Release or x64/Win32, but it can be slower on large solutions.
+
+```bash
+dotnet run -- "MySolution.sln" --per-config-refs
+```
+
 **Use cases:**
 - When you want to manually fix package issues
 - When you don't want the tool to modify project files

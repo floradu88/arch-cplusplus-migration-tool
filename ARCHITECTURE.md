@@ -137,6 +137,9 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
   - Optionally install required `Microsoft.Build*` NuGet packages (version `15.1.548`) based on the error message
   - Run `dotnet restore`
   - Retry parsing once after applying fixes (configurable)
+- Per-configuration analysis (optional):
+  - Evaluate project with global properties for each `Configuration|Platform`
+  - Capture per-config references (NuGet/assemblies/libs/includes) as snapshots for accurate migration/build analysis
 - Extract build settings:
   - Output directory
   - Intermediate directory

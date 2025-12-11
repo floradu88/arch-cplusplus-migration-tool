@@ -50,7 +50,7 @@ class Program
             return 1;
         }
 
-        return RunAnalysis(options.SolutionPath, options.AssumeVsEnv, options.AutoInstallPackages);
+        return RunAnalysis(options.SolutionPath, options.AssumeVsEnv, options.AutoInstallPackages, options.PerConfigReferences);
     }
 
     private static ToolsContext DiscoverTools(CliOptions options)
@@ -84,7 +84,7 @@ class Program
         return ctx;
     }
 
-    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages)
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences)
     {
         try
         {
@@ -112,6 +112,10 @@ class Program
             {
                 Console.WriteLine("  Note: Automatic package installation is disabled (--no-auto-install-packages)");
             }
+            if (perConfigReferences)
+            {
+                Console.WriteLine("  Note: Per-configuration reference snapshots are enabled (--per-config-refs)");
+            }
 
             var projects = new List<Models.ProjectNode>();
             var failedProjects = new List<(string Path, string Error)>();
@@ -121,7 +125,12 @@ class Program
                 try
                 {
                     Console.WriteLine($"  Parsing: {Path.GetFileName(projectPath)}");
-                    var project = ProjectParser.ParseProject(projectPath, assumeVsEnv, maxRetries: 1, autoInstallPackages: autoInstallPackages);
+                    var project = ProjectParser.ParseProject(
+                        projectPath,
+                        assumeVsEnv,
+                        maxRetries: 1,
+                        autoInstallPackages: autoInstallPackages,
+                        perConfigReferences: perConfigReferences);
                     if (project != null)
                     {
                         var match = solutionInfo.Projects.FirstOrDefault(p => string.Equals(p.FullPath, projectPath, StringComparison.OrdinalIgnoreCase));
@@ -261,6 +270,7 @@ class Program
         var totalIncludeDirs = projects.Sum(p => p.IncludeDirectories.Count);
         var totalHeaders = projects.Sum(p => p.HeaderFiles.Count);
         var totalValidationIssues = projects.Sum(p => p.ReferenceValidationIssues.Count);
+        var totalConfigSnapshots = projects.Sum(p => p.ConfigurationSnapshots.Count);
 
         Console.WriteLine("Reference Totals:");
         Console.WriteLine($"  NuGet packages: {totalNuGet}");
@@ -273,6 +283,10 @@ class Program
         Console.WriteLine($"  Include directories: {totalIncludeDirs}");
         Console.WriteLine($"  Header files: {totalHeaders}");
         Console.WriteLine($"  Missing/invalid reference paths: {totalValidationIssues}");
+        if (totalConfigSnapshots > 0)
+        {
+            Console.WriteLine($"  Per-config reference snapshots: {totalConfigSnapshots}");
+        }
         Console.WriteLine();
 
         // Build matrix summary
@@ -381,6 +395,10 @@ class Program
         Console.WriteLine();
         Console.WriteLine("  --no-auto-install-packages  Disable automatic package installation");
         Console.WriteLine("                          Projects with missing packages will fail without attempting to fix them");
+        Console.WriteLine();
+        Console.WriteLine("  --per-config-refs          Capture per-Configuration|Platform reference snapshots (can be slower)");
+        Console.WriteLine("                          Evaluates projects for each config/platform and records refs/libs/includes/packages");
+        Console.WriteLine("                          Stored under configurationSnapshots in JSON");
         Console.WriteLine();
         Console.WriteLine("This tool analyzes a Visual Studio solution and generates:");
         Console.WriteLine("  - dependency-tree.json (machine-readable dependency data)");

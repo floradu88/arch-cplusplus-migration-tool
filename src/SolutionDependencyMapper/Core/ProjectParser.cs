@@ -35,8 +35,9 @@ public class ProjectParser
     /// <param name="assumeVsEnv">If true, skip MSBuildLocator check (assumes VS environment is configured)</param>
     /// <param name="maxRetries">Maximum number of retry attempts after package installation (default: 1)</param>
     /// <param name="autoInstallPackages">If true, automatically install missing Microsoft.Build packages (default: true)</param>
+    /// <param name="perConfigReferences">If true, evaluates each Configuration|Platform and captures references (slower)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true, bool perConfigReferences = false)
     {
         if (!File.Exists(projectPath))
         {
@@ -92,6 +93,12 @@ public class ProjectParser
 
                 // Extract build matrix (Configurations / Platforms / pairs)
                 ExtractBuildMatrix(project, projectPath, node);
+
+                // Optional: evaluate per config/platform and snapshot references (can be expensive)
+                if (perConfigReferences && node.ConfigurationPlatforms.Count > 0)
+                {
+                    node.ConfigurationSnapshots = ExtractConfigurationSnapshots(projectPath, node.ConfigurationPlatforms, assumeVsEnv);
+                }
 
                 // Extract additional properties
                 node.Properties = ExtractProperties(project);
@@ -556,6 +563,84 @@ public class ProjectParser
         }
 
         return false;
+    }
+
+    private static List<ProjectConfigurationSnapshot> ExtractConfigurationSnapshots(string projectPath, List<string> configurationPlatforms, bool assumeVsEnv)
+    {
+        EnsureMsBuildRegistered(assumeVsEnv);
+
+        var results = new List<ProjectConfigurationSnapshot>();
+        foreach (var cp in configurationPlatforms.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var parts = cp.Split('|', 2, StringSplitOptions.TrimEntries);
+            var cfg = parts.Length > 0 ? parts[0] : cp;
+            var plat = parts.Length > 1 ? parts[1] : string.Empty;
+
+            var globals = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Configuration"] = cfg
+            };
+            if (!string.IsNullOrWhiteSpace(plat))
+            {
+                globals["Platform"] = plat;
+            }
+
+            // Evaluate project with those global properties
+            var pc = new ProjectCollection(globals);
+            Project? proj = null;
+            try
+            {
+                proj = pc.LoadProject(projectPath);
+
+                var snap = new ProjectConfigurationSnapshot
+                {
+                    Configuration = cfg,
+                    Platform = plat
+                };
+
+                snap.ProjectDependencies = ExtractProjectReferences(proj, projectPath);
+
+                // Structured refs
+                snap.NuGetPackageReferences = ExtractNuGetPackageReferences(proj);
+                snap.FrameworkReferences = ExtractItemIncludes(proj, "FrameworkReference");
+                snap.AssemblyReferences = ExtractItemIncludes(proj, "Reference");
+                snap.ComReferences = ExtractItemIncludes(proj, "COMReference");
+                snap.AnalyzerReferences = ExtractItemIncludes(proj, "Analyzer");
+
+                snap.NativeLibraries = ExtractListProperty(proj, "AdditionalDependencies");
+                snap.NativeDelayLoadDlls = ExtractListProperty(proj, "DelayLoadDLLs");
+                snap.NativeLibraryDirectories = ExtractListProperty(proj, "AdditionalLibraryDirectories");
+                snap.IncludeDirectories = ExtractListProperty(proj, "AdditionalIncludeDirectories");
+                snap.HeaderFiles = ExtractProjectItemPaths(proj, projectPath, "ClInclude");
+
+                // Validate existence for this specific config/platform snapshot
+                var tempNode = new ProjectNode
+                {
+                    Path = projectPath,
+                    ProjectDependencies = snap.ProjectDependencies,
+                    NativeLibraries = snap.NativeLibraries,
+                    NativeDelayLoadDlls = snap.NativeDelayLoadDlls,
+                    NativeLibraryDirectories = snap.NativeLibraryDirectories,
+                    IncludeDirectories = snap.IncludeDirectories,
+                    HeaderFiles = snap.HeaderFiles
+                };
+                ReferenceValidator.Validate(proj, projectPath, tempNode);
+                snap.ReferenceValidationIssues = tempNode.ReferenceValidationIssues;
+
+                results.Add(snap);
+            }
+            catch
+            {
+                // Best-effort. If a specific config/platform cannot be evaluated, skip it.
+            }
+            finally
+            {
+                if (proj != null) pc.UnloadProject(proj);
+                pc.UnloadAllProjects();
+            }
+        }
+
+        return results.OrderBy(s => s.Key, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>

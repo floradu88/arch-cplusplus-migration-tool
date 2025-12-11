@@ -48,7 +48,7 @@ public class ProjectParserTests
         try
         {
             // Act
-            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false, perConfigReferences: true);
 
             // Assert
             Assert.NotNull(result);
@@ -236,6 +236,11 @@ public class ProjectParserTests
             Assert.Contains("Debug", result.Configurations, StringComparer.OrdinalIgnoreCase);
             Assert.Contains("Release", result.Configurations, StringComparer.OrdinalIgnoreCase);
             Assert.Contains("AnyCPU", result.Platforms, StringComparer.OrdinalIgnoreCase);
+
+            // Per-config snapshots should exist and include the package for both configs in this simple case
+            Assert.True(result.ConfigurationSnapshots.Count >= 2);
+            Assert.Contains(result.ConfigurationSnapshots, s => s.Key.Equals("Debug|AnyCPU", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.ConfigurationSnapshots, s => s.Key.Equals("Release|AnyCPU", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -394,6 +399,59 @@ public class ProjectParserTests
             Assert.Contains("x64", result.Platforms);
             Assert.Contains("Debug|Win32", result.ConfigurationPlatforms);
             Assert.Contains("Release|x64", result.ConfigurationPlatforms);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_PerConfigRefs_CapturesConditionedNativeDependencies()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var projectPath = Path.Combine(tempDir, "Native.vcxproj");
+
+        File.WriteAllText(projectPath, @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
+  <ItemGroup Label=""ProjectConfigurations"">
+    <ProjectConfiguration Include=""Debug|Win32"">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include=""Release|Win32"">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Condition=""'$(Configuration)|$(Platform)'=='Debug|Win32'"">
+    <ConfigurationType>Application</ConfigurationType>
+    <AdditionalDependencies>dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=""'$(Configuration)|$(Platform)'=='Release|Win32'"">
+    <ConfigurationType>Application</ConfigurationType>
+    <AdditionalDependencies>user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false, perConfigReferences: true);
+            Assert.NotNull(result);
+
+            var debug = result.ConfigurationSnapshots.FirstOrDefault(s => s.Key.Equals("Debug|Win32", StringComparison.OrdinalIgnoreCase));
+            var release = result.ConfigurationSnapshots.FirstOrDefault(s => s.Key.Equals("Release|Win32", StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotNull(debug);
+            Assert.NotNull(release);
+            Assert.Contains("dbghelp.lib", debug!.NativeLibraries, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("user32.lib", release!.NativeLibraries, StringComparer.OrdinalIgnoreCase);
         }
         finally
         {
