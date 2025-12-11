@@ -86,6 +86,9 @@ public class ProjectParser
                 // Extract backward-compatible flat dependencies (used by existing outputs)
                 node.ExternalDependencies = BuildFlatExternalDependencies(node);
 
+                // Validate that key file/path-based references exist (non-building check)
+                ReferenceValidator.Validate(project, projectPath, node);
+
                 // Extract additional properties
                 node.Properties = ExtractProperties(project);
 

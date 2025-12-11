@@ -269,6 +269,7 @@ public class JsonGeneratorTests
             Assert.Contains("includeDirectories", content);
             Assert.Contains("C:\\\\include", content);
             Assert.Contains("headerFiles", content);
+            Assert.Contains("referenceValidationIssues", content);
         }
         finally
         {

@@ -240,6 +240,42 @@ public class ProjectParserTests
     }
 
     [Fact]
+    public void ParseProject_ValidatesMissingProjectReferenceAndHintPath()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var projectPath = Path.Combine(tempDir, "App.csproj");
+
+        File.WriteAllText(projectPath, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include=""MissingLib.csproj"" />
+    <Reference Include=""Some.Assembly"">
+      <HintPath>libs\Missing.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+            Assert.NotNull(result);
+
+            Assert.Contains(result.ReferenceValidationIssues, i => i.Category == "ProjectReference");
+            Assert.Contains(result.ReferenceValidationIssues, i => i.Category == "HintPath");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void ParseProject_Vcxproj_ExtractsNativeLibsIncludeDirsAndHeaders()
     {
         if (!EnsureMsBuildRegisteredOrSkip()) return;
@@ -276,6 +312,39 @@ public class ProjectParserTests
             Assert.Contains("C:\\3rdparty\\lib", result.NativeLibraryDirectories);
             Assert.Contains("dbghelp.dll", result.NativeDelayLoadDlls);
             Assert.Contains(headerPath, result.HeaderFiles);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_Vcxproj_ValidatesMissingHeaderFile()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var projectPath = Path.Combine(tempDir, "Native.vcxproj");
+
+        // Note: don't create the header file on disk.
+        File.WriteAllText(projectPath, @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
+  <ItemGroup>
+    <ClInclude Include=""missing.h"" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+            Assert.NotNull(result);
+            Assert.Contains(result.ReferenceValidationIssues, i => i.Category == "HeaderFile");
         }
         finally
         {

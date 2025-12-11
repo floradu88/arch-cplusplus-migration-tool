@@ -35,6 +35,9 @@ public class ProjectNode
     public List<string> NativeLibraryDirectories { get; set; } = new();     // e.g., $(ProjectDir)lib;C:\3rdparty\lib
     public List<string> IncludeDirectories { get; set; } = new();           // e.g., $(ProjectDir)include;C:\3rdparty\include
     public List<string> HeaderFiles { get; set; } = new();                  // e.g., *.h tracked as project items
+
+    // Validation results (existence checks for file/path-based references)
+    public List<ReferenceValidationIssue> ReferenceValidationIssues { get; set; } = new();
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }

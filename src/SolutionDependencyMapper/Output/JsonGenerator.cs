@@ -54,6 +54,13 @@ public class JsonGenerator
             NativeLibraryDirectories = p.NativeLibraryDirectories,
             IncludeDirectories = p.IncludeDirectories,
             HeaderFiles = p.HeaderFiles,
+            ReferenceValidationIssues = p.ReferenceValidationIssues.Select(i => new
+            {
+                i.Category,
+                i.Reference,
+                i.ResolvedPath,
+                i.Details
+            }),
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

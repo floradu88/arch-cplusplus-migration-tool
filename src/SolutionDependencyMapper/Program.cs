@@ -252,6 +252,7 @@ class Program
         var totalDelayLoadDlls = projects.Sum(p => p.NativeDelayLoadDlls.Count);
         var totalIncludeDirs = projects.Sum(p => p.IncludeDirectories.Count);
         var totalHeaders = projects.Sum(p => p.HeaderFiles.Count);
+        var totalValidationIssues = projects.Sum(p => p.ReferenceValidationIssues.Count);
 
         Console.WriteLine("Reference Totals:");
         Console.WriteLine($"  NuGet packages: {totalNuGet}");
@@ -263,6 +264,7 @@ class Program
         Console.WriteLine($"  Delay-load DLLs: {totalDelayLoadDlls}");
         Console.WriteLine($"  Include directories: {totalIncludeDirs}");
         Console.WriteLine($"  Header files: {totalHeaders}");
+        Console.WriteLine($"  Missing/invalid reference paths: {totalValidationIssues}");
         Console.WriteLine();
 
         // Group by project type
