@@ -129,6 +129,11 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
   - Project references (`<ProjectReference>`)
   - External references (`<Reference>` for .NET)
   - Library dependencies (`<AdditionalDependencies>` for native)
+- Error resilience / auto-fix:
+  - Detect **Microsoft.Build\*** assembly/type load failures during parsing
+  - Optionally install required `Microsoft.Build*` NuGet packages (version `15.1.548`) based on the error message
+  - Run `dotnet restore`
+  - Retry parsing once after applying fixes (configurable)
 - Extract build settings:
   - Output directory
   - Intermediate directory

@@ -118,7 +118,7 @@ Enable automatic installation of missing Microsoft.Build packages (default: enab
 
 When a project fails to parse due to missing Microsoft.Build packages, the tool will:
 1. Automatically detect the missing package error
-2. Install Microsoft.Build 15.1.548 and related packages to the project file
+2. Install the required `Microsoft.Build*` NuGet packages (version `15.1.548`) inferred from the error message (for example: `Microsoft.Build`, `Microsoft.Build.Framework`, `Microsoft.Build.Utilities.Core`, `Microsoft.Build.Tasks.Core`)
 3. Run `dotnet restore` to restore packages
 4. Retry parsing the project
 
@@ -647,8 +647,8 @@ The tool now continues parsing all projects even when individual projects fail. 
 
 **Solutions:**
 1. **Automatic Package Installation**
-   - The tool automatically detects missing Microsoft.Build packages
-   - Automatically installs required packages (Microsoft.Build 15.1.548, etc.)
+   - The tool detects **Microsoft.Build* assembly/type load failures** during parsing
+   - Automatically installs the required `Microsoft.Build*` packages (version `15.1.548`) **based on the error message**
    - Runs `dotnet restore` automatically
    - Retries parsing after package installation
 
@@ -662,7 +662,9 @@ The tool now continues parsing all projects even when individual projects fail. 
    ```xml
    <ItemGroup>
      <PackageReference Include="Microsoft.Build" Version="15.1.548" />
+     <PackageReference Include="Microsoft.Build.Framework" Version="15.1.548" />
      <PackageReference Include="Microsoft.Build.Utilities.Core" Version="15.1.548" />
+     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="15.1.548" />
    </ItemGroup>
    ```
    - Then run `dotnet restore` on the project
