@@ -143,6 +143,17 @@ This is useful when references differ between Debug/Release or x64/Win32, but it
 dotnet run -- "MySolution.sln" --per-config-refs
 ```
 
+#### `--parallel` / `--no-parallel` and `--max-parallelism N`
+Enable or disable bounded parallel execution (tool discovery, project parsing, and output generation). Default is **enabled**.
+
+```bash
+# Use parallel execution with a cap
+dotnet run -- "MySolution.sln" --parallel --max-parallelism 8
+
+# Disable parallel execution (useful for debugging or if MSBuild evaluation is flaky)
+dotnet run -- "MySolution.sln" --no-parallel
+```
+
 **Use cases:**
 - When you want to manually fix package issues
 - When you don't want the tool to modify project files

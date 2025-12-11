@@ -12,7 +12,9 @@ public sealed record CliOptions(
     string? FindToolsRoot,
     bool AssumeVsEnv,
     bool AutoInstallPackages,
-    bool PerConfigReferences
+    bool PerConfigReferences,
+    bool Parallel,
+    int MaxParallelism
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -23,7 +25,9 @@ public sealed record CliOptions(
             FindToolsRoot: null,
             AssumeVsEnv: false,
             AutoInstallPackages: true,
-            PerConfigReferences: false
+            PerConfigReferences: false,
+            Parallel: true,
+            MaxParallelism: Environment.ProcessorCount
         );
         error = null;
 
@@ -80,6 +84,39 @@ public sealed record CliOptions(
             argsList.Remove("--no-per-config-refs");
             argsList.Remove("--no-per-config-references");
             options = options with { PerConfigReferences = false };
+        }
+
+        if (argsList.Contains("--no-parallel"))
+        {
+            argsList.Remove("--no-parallel");
+            options = options with { Parallel = false };
+        }
+        if (argsList.Contains("--parallel"))
+        {
+            argsList.Remove("--parallel");
+            options = options with { Parallel = true };
+        }
+
+        // --max-parallelism N
+        var mpi = argsList.FindIndex(a => a.Equals("--max-parallelism", StringComparison.OrdinalIgnoreCase));
+        if (mpi >= 0)
+        {
+            if (mpi + 1 >= argsList.Count)
+            {
+                error = "Missing value for --max-parallelism";
+                return false;
+            }
+
+            if (!int.TryParse(argsList[mpi + 1], out var maxPar) || maxPar < 1)
+            {
+                error = $"Invalid value for --max-parallelism: {argsList[mpi + 1]}";
+                return false;
+            }
+
+            // remove flag + value
+            argsList.RemoveAt(mpi + 1);
+            argsList.RemoveAt(mpi);
+            options = options with { MaxParallelism = maxPar };
         }
 
         // First remaining arg is the solution path (can be non-existent; validate later)

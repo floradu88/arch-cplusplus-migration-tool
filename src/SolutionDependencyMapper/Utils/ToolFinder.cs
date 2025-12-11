@@ -37,8 +37,14 @@ public static class ToolFinder
     /// <returns>Dictionary of tool names to lists of found instances</returns>
     public static Dictionary<string, List<FoundTool>> FindAllTools(string? projectRoot = null)
     {
-        var results = new Dictionary<string, List<FoundTool>>();
+        return FindAllTools(projectRoot, parallel: false, maxParallelism: null);
+    }
 
+    /// <summary>
+    /// Finds all Visual Studio tools, CMake, and other C++ tools, optionally in parallel.
+    /// </summary>
+    public static Dictionary<string, List<FoundTool>> FindAllTools(string? projectRoot, bool parallel, int? maxParallelism)
+    {
         // Define tools to search for
         var toolsToFind = new[]
         {
@@ -59,16 +65,36 @@ public static class ToolFinder
             "nmake.exe"         // NMAKE build tool
         };
 
-        foreach (var toolName in toolsToFind)
+        if (!parallel)
+        {
+            var results = new Dictionary<string, List<FoundTool>>();
+            foreach (var toolName in toolsToFind)
+            {
+                var found = FindTool(toolName, projectRoot);
+                if (found.Count > 0)
+                {
+                    results[toolName] = found;
+                }
+            }
+            return results;
+        }
+
+        var concurrent = new System.Collections.Concurrent.ConcurrentDictionary<string, List<FoundTool>>(StringComparer.OrdinalIgnoreCase);
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = maxParallelism.HasValue ? Math.Max(1, maxParallelism.Value) : Environment.ProcessorCount
+        };
+
+        Parallel.ForEach(toolsToFind, options, toolName =>
         {
             var found = FindTool(toolName, projectRoot);
             if (found.Count > 0)
             {
-                results[toolName] = found;
+                concurrent[toolName] = found;
             }
-        }
+        });
 
-        return results;
+        return concurrent.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>

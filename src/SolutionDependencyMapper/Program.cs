@@ -3,6 +3,7 @@ using SolutionDependencyMapper.Cli;
 using SolutionDependencyMapper.Core;
 using SolutionDependencyMapper.Output;
 using SolutionDependencyMapper.Utils;
+using System.Collections.Concurrent;
 
 namespace SolutionDependencyMapper;
 
@@ -16,6 +17,10 @@ class Program
 
     static int Main(string[] args)
     {
+        // Avoid garbled console output when running tasks in parallel
+        Console.SetOut(TextWriter.Synchronized(Console.Out));
+        Console.SetError(TextWriter.Synchronized(Console.Error));
+
         if (!CliOptions.TryParse(args, out var options, out var error))
         {
             Console.WriteLine(error);
@@ -50,7 +55,13 @@ class Program
             return 1;
         }
 
-        return RunAnalysis(options.SolutionPath, options.AssumeVsEnv, options.AutoInstallPackages, options.PerConfigReferences);
+        return RunAnalysis(
+            options.SolutionPath,
+            options.AssumeVsEnv,
+            options.AutoInstallPackages,
+            options.PerConfigReferences,
+            options.Parallel,
+            options.MaxParallelism);
     }
 
     private static ToolsContext DiscoverTools(CliOptions options)
@@ -66,7 +77,7 @@ class Program
 
         var ctx = new ToolsContext
         {
-            AllTools = ToolFinder.FindAllTools(solutionRoot)
+            AllTools = ToolFinder.FindAllTools(solutionRoot, parallel: options.Parallel, maxParallelism: options.MaxParallelism)
         };
 
         var toolCount = ctx.AllTools.Values.Sum(v => v.Count);
@@ -84,7 +95,7 @@ class Program
         return ctx;
     }
 
-    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences)
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool parallel, int maxParallelism)
     {
         try
         {
@@ -116,11 +127,29 @@ class Program
             {
                 Console.WriteLine("  Note: Per-configuration reference snapshots are enabled (--per-config-refs)");
             }
+            if (parallel)
+            {
+                Console.WriteLine($"  Note: Parallel execution enabled (max-parallelism={maxParallelism})");
+            }
 
-            var projects = new List<Models.ProjectNode>();
-            var failedProjects = new List<(string Path, string Error)>();
+            var projects = new ConcurrentBag<Models.ProjectNode>();
+            var failedProjects = new ConcurrentBag<(string Path, string Error)>();
 
-            foreach (var projectPath in projectPaths)
+            var solutionProjectByPath = solutionInfo.Projects.ToDictionary(p => p.FullPath, StringComparer.OrdinalIgnoreCase);
+
+            if (!parallel)
+            {
+                foreach (var projectPath in projectPaths)
+                {
+                    ParseOne(projectPath);
+                }
+            }
+            else
+            {
+                Parallel.ForEach(projectPaths, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelism) }, ParseOne);
+            }
+
+            void ParseOne(string projectPath)
             {
                 try
                 {
@@ -131,23 +160,22 @@ class Program
                         maxRetries: 1,
                         autoInstallPackages: autoInstallPackages,
                         perConfigReferences: perConfigReferences);
-                    if (project != null)
-                    {
-                        var match = solutionInfo.Projects.FirstOrDefault(p => string.Equals(p.FullPath, projectPath, StringComparison.OrdinalIgnoreCase));
-                        if (match != null)
-                        {
-                            project.SolutionProjectGuid = match.ProjectGuid;
-                            project.SolutionConfigurationMappings = match.ConfigurationMappings;
-                        }
 
-                        projects.Add(project);
-                        Console.WriteLine($"    ✓ Successfully parsed: {Path.GetFileName(projectPath)}");
-                    }
-                    else
+                    if (project == null)
                     {
                         failedProjects.Add((projectPath, "Parsing returned null (see errors above)"));
                         Console.WriteLine($"    ✗ Failed to parse: {Path.GetFileName(projectPath)}");
+                        return;
                     }
+
+                    if (solutionProjectByPath.TryGetValue(projectPath, out var match))
+                    {
+                        project.SolutionProjectGuid = match.ProjectGuid;
+                        project.SolutionConfigurationMappings = match.ConfigurationMappings;
+                    }
+
+                    projects.Add(project);
+                    Console.WriteLine($"    ✓ Successfully parsed: {Path.GetFileName(projectPath)}");
                 }
                 catch (Exception ex)
                 {
@@ -157,18 +185,21 @@ class Program
                 }
             }
 
-            PrintParsingSummary(projects.Count, failedProjects);
+            var projectsList = projects.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            var failedList = failedProjects.OrderBy(f => Path.GetFileName(f.Path), StringComparer.OrdinalIgnoreCase).ToList();
 
-            if (projects.Count == 0)
+            PrintParsingSummary(projectsList.Count, failedList);
+
+            if (projectsList.Count == 0)
             {
                 Console.WriteLine("\n⚠️  Warning: No projects were successfully parsed. Cannot generate summary or outputs.");
                 return 1;
             }
 
-            PrintSolutionSummary(projects, solutionPath);
+            PrintSolutionSummary(projectsList, solutionPath);
 
             Console.WriteLine("\nBuilding dependency graph...");
-            var graph = DependencyGraphBuilder.BuildGraph(projects);
+            var graph = DependencyGraphBuilder.BuildGraph(projectsList);
             Console.WriteLine($"  Nodes: {graph.Nodes.Count}");
             Console.WriteLine($"  Edges: {graph.Edges.Count}");
             Console.WriteLine($"  Build Layers: {graph.BuildLayers.Count}");
@@ -181,24 +212,52 @@ class Program
             Directory.CreateDirectory(outputDir);
 
             Console.WriteLine("\nGenerating outputs...");
+
             var jsonPath = Path.Combine(outputDir, "dependency-tree.json");
-            JsonGenerator.Generate(graph, jsonPath);
-            Console.WriteLine($"  ✓ Generated: {jsonPath}");
-
             var mermaidPath = Path.Combine(outputDir, "dependency-graph.md");
-            MermaidGenerator.Generate(graph, mermaidPath);
-            Console.WriteLine($"  ✓ Generated: {mermaidPath}");
-
             var drawioPath = Path.Combine(outputDir, "dependency-graph.drawio");
-            DrawioGenerator.Generate(graph, drawioPath);
-            Console.WriteLine($"  ✓ Generated: {drawioPath}");
 
-            Console.WriteLine("\nGenerating build scripts...");
-            BuildScriptGenerator.GenerateAll(graph, solutionPath, outputDir, "Release", "x64", _toolsContext);
-            Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build-layers.json")}");
-            Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.ps1")}");
-            Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.bat")}");
-            Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.sh")}");
+            void GenerateJson()
+            {
+                JsonGenerator.Generate(graph, jsonPath);
+                Console.WriteLine($"  ✓ Generated: {jsonPath}");
+            }
+            void GenerateMermaid()
+            {
+                MermaidGenerator.Generate(graph, mermaidPath);
+                Console.WriteLine($"  ✓ Generated: {mermaidPath}");
+            }
+            void GenerateDrawio()
+            {
+                DrawioGenerator.Generate(graph, drawioPath);
+                Console.WriteLine($"  ✓ Generated: {drawioPath}");
+            }
+            void GenerateScripts()
+            {
+                Console.WriteLine("\nGenerating build scripts...");
+                BuildScriptGenerator.GenerateAll(graph, solutionPath, outputDir, "Release", "x64", _toolsContext);
+                Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build-layers.json")}");
+                Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.ps1")}");
+                Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.bat")}");
+                Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.sh")}");
+            }
+
+            if (!parallel)
+            {
+                GenerateJson();
+                GenerateMermaid();
+                GenerateDrawio();
+                GenerateScripts();
+            }
+            else
+            {
+                Parallel.Invoke(
+                    new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelism) },
+                    GenerateJson,
+                    GenerateMermaid,
+                    GenerateDrawio,
+                    GenerateScripts);
+            }
 
             Console.WriteLine("\n✓ Analysis complete!");
             Console.WriteLine($"\nOutput directory: {outputDir}");
@@ -399,6 +458,9 @@ class Program
         Console.WriteLine("  --per-config-refs          Capture per-Configuration|Platform reference snapshots (can be slower)");
         Console.WriteLine("                          Evaluates projects for each config/platform and records refs/libs/includes/packages");
         Console.WriteLine("                          Stored under configurationSnapshots in JSON");
+        Console.WriteLine();
+        Console.WriteLine("  --parallel / --no-parallel Enable/disable bounded parallel execution (default: enabled)");
+        Console.WriteLine("  --max-parallelism N       Maximum degree of parallelism (default: CPU count)");
         Console.WriteLine();
         Console.WriteLine("This tool analyzes a Visual Studio solution and generates:");
         Console.WriteLine("  - dependency-tree.json (machine-readable dependency data)");
