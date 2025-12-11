@@ -42,7 +42,18 @@ class Program
         }
         Console.WriteLine();
 
+        // Check for special commands BEFORE MSBuildLocator initialization
+        if (args.Length > 0)
+        {
+            if (args[0] == "--find-tools" || args[0] == "--tools" || args[0] == "-t")
+            {
+                FindAndPrintTools(args.Length > 1 ? args[1] : null);
+                return 0;
+            }
+        }
+
         // Initialize MSBuildLocator using discovered tools
+        // (Only needed for solution analysis, not for --find-tools)
         if (!MSBuildLocator.IsRegistered)
         {
             // Try to find MSBuild instances with different query options
@@ -58,52 +69,63 @@ class Program
                 ).ToList();
             }
 
-            // If still no instances, try using ToolFinder results
+            // If still no instances, check if ToolFinder found MSBuild
             if (instances.Count == 0 && _toolsContext != null && _toolsContext.HasTool("msbuild.exe"))
             {
                 var msbuildPath = _toolsContext.GetMSBuildPath();
                 if (msbuildPath != null && File.Exists(msbuildPath))
                 {
-                    Console.WriteLine($"Warning: MSBuildLocator could not find Visual Studio instances.");
-                    Console.WriteLine($"Found MSBuild via ToolFinder at: {msbuildPath}");
-                    Console.WriteLine($"However, MSBuildLocator requires Visual Studio to be properly registered.");
+                    Console.WriteLine("⚠️  Warning: MSBuildLocator could not find Visual Studio instances.");
+                    Console.WriteLine($"   However, ToolFinder found MSBuild at: {msbuildPath}");
                     Console.WriteLine();
+                    Console.WriteLine("   MSBuildLocator requires Visual Studio to be properly registered in the system.");
+                    Console.WriteLine("   The tool can still generate build scripts, but project parsing may fail.");
+                    Console.WriteLine();
+                    Console.WriteLine("   To fix this:");
+                    Console.WriteLine("   1. Ensure Visual Studio or Build Tools are properly installed");
+                    Console.WriteLine("   2. Try running from 'Developer Command Prompt for VS'");
+                    Console.WriteLine("   3. Repair Visual Studio installation if needed");
+                    Console.WriteLine();
+                    Console.WriteLine("   Continuing anyway (build scripts will use discovered MSBuild path)...");
+                    Console.WriteLine();
+                    
+                    // Don't return error - allow the tool to continue for build script generation
+                    // Project parsing will fail later if MSBuildLocator is truly needed
                 }
             }
 
             if (instances.Count == 0)
             {
-                Console.WriteLine("Error: No MSBuild instances found.");
-                Console.WriteLine();
-                Console.WriteLine("Possible solutions:");
-                Console.WriteLine("1. Install Visual Studio Build Tools or Visual Studio");
-                Console.WriteLine("   Download: https://visualstudio.microsoft.com/downloads/");
-                Console.WriteLine();
-                Console.WriteLine("2. For Build Tools, ensure 'MSBuild' workload is installed");
-                Console.WriteLine();
-                Console.WriteLine("3. Try running 'Developer Command Prompt for VS' or 'Developer PowerShell for VS'");
-                Console.WriteLine("   These set up the environment correctly for MSBuild");
-                Console.WriteLine();
-                Console.WriteLine("4. If Visual Studio is installed, try repairing the installation");
-                Console.WriteLine("   (Visual Studio Installer > Modify > Repair)");
-                return 1;
+                // If ToolFinder also didn't find MSBuild, show full error
+                if (_toolsContext == null || !_toolsContext.HasTool("msbuild.exe"))
+                {
+                    Console.WriteLine("❌ Error: No MSBuild instances found.");
+                    Console.WriteLine();
+                    Console.WriteLine("Possible solutions:");
+                    Console.WriteLine("1. Install Visual Studio Build Tools or Visual Studio");
+                    Console.WriteLine("   Download: https://visualstudio.microsoft.com/downloads/");
+                    Console.WriteLine();
+                    Console.WriteLine("2. For Build Tools, ensure 'MSBuild' workload is installed");
+                    Console.WriteLine();
+                    Console.WriteLine("3. Try running 'Developer Command Prompt for VS' or 'Developer PowerShell for VS'");
+                    Console.WriteLine("   These set up the environment correctly for MSBuild");
+                    Console.WriteLine();
+                    Console.WriteLine("4. If Visual Studio is installed, try repairing the installation");
+                    Console.WriteLine("   (Visual Studio Installer > Modify > Repair)");
+                    return 1;
+                }
+                else
+                {
+                    // ToolFinder found MSBuild but MSBuildLocator didn't
+                    // Continue with warning (already shown above)
+                }
             }
 
             // Use the highest version available
             var instance = instances.OrderByDescending(i => i.Version).First();
             MSBuildLocator.RegisterInstance(instance);
-            Console.WriteLine($"Using MSBuild from: {instance.MSBuildPath}");
-            Console.WriteLine($"MSBuild Version: {instance.Version}");
-        }
-
-        // Check for special commands
-        if (args.Length > 0)
-        {
-            if (args[0] == "--find-tools" || args[0] == "--tools" || args[0] == "-t")
-            {
-                FindAndPrintTools(args.Length > 1 ? args[1] : null);
-                return 0;
-            }
+            Console.WriteLine($"✓ Using MSBuild from: {instance.MSBuildPath}");
+            Console.WriteLine($"  MSBuild Version: {instance.Version}");
         }
 
         if (args.Length == 0)
@@ -121,6 +143,21 @@ class Program
 
         try
         {
+            // Check if MSBuildLocator is registered (required for project parsing)
+            if (!MSBuildLocator.IsRegistered)
+            {
+                Console.WriteLine("❌ Error: MSBuildLocator is not registered. Cannot parse project files.");
+                Console.WriteLine();
+                if (_toolsContext != null && _toolsContext.HasTool("msbuild.exe"))
+                {
+                    Console.WriteLine("Note: MSBuild was found via ToolFinder, but MSBuildLocator requires");
+                    Console.WriteLine("      Visual Studio to be properly registered in the system.");
+                    Console.WriteLine();
+                }
+                Console.WriteLine("Please ensure Visual Studio or Build Tools are properly installed and registered.");
+                return 1;
+            }
+
             Console.WriteLine($"Loading solution: {solutionPath}");
 
             // Step 1: Extract project paths from solution

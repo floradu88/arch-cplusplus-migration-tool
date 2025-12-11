@@ -465,14 +465,29 @@ dotnet run -- "MySolution.sln"
 
 ## 🐛 Troubleshooting
 
-### MSBuild Not Found
-**Error:** `MSBuild not found`
+### MSBuild Not Found / MSBuildLocator Not Registered
+**Error:** `No MSBuild instances found` or `MSBuildLocator is not registered`
+
+The tool automatically discovers MSBuild using ToolFinder, but MSBuildLocator (required for parsing project files) needs Visual Studio to be properly registered.
 
 **Solutions:**
-1. Install Visual Studio or Build Tools
-2. Run from Developer Command Prompt
-3. Add MSBuild to PATH
-4. The generated build scripts will auto-detect MSBuild
+1. **Install Visual Studio or Build Tools**
+   - Download: https://visualstudio.microsoft.com/downloads/
+   - Ensure the "MSBuild" workload is installed
+
+2. **Run from Developer Command Prompt**
+   - Use "Developer Command Prompt for VS" or "Developer PowerShell for VS"
+   - These set up the environment correctly for MSBuildLocator
+
+3. **Repair Visual Studio Installation**
+   - Open Visual Studio Installer
+   - Click "Modify" → "Repair"
+
+4. **Check Tool Discovery**
+   - Run `dotnet run -- --find-tools` to see if MSBuild is discovered
+   - If found via ToolFinder but MSBuildLocator fails, Visual Studio registration is the issue
+
+5. **Note:** The generated build scripts will use discovered MSBuild paths even if MSBuildLocator fails
 
 ### No Projects Found
 **Error:** `No projects found in solution`
