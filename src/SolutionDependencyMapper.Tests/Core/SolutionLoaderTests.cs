@@ -13,6 +13,8 @@ public class SolutionLoaderTests
         var solutionPath = Path.Combine(tempDir, "TestSolution.sln");
         var project1Path = Path.Combine(tempDir, "Project1.vcxproj");
         var project2Path = Path.Combine(tempDir, "Project2.csproj");
+        var project3Path = Path.Combine(tempDir, "Project3.vbproj");
+        var project4Path = Path.Combine(tempDir, "Project4.vcproj");
 
         // Create test solution file
         var solutionContent = @"
@@ -21,10 +23,16 @@ Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""Project1"", ""Project1.v
 EndProject
 Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""Project2"", ""Project2.csproj"", ""{22222222-2222-2222-2222-222222222222}""
 EndProject
+Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""Project3"", ""Project3.vbproj"", ""{33333333-3333-3333-3333-333333333333}""
+EndProject
+Project(""{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"") = ""Project4"", ""Project4.vcproj"", ""{44444444-4444-4444-4444-444444444444}""
+EndProject
 ";
         File.WriteAllText(solutionPath, solutionContent);
         File.WriteAllText(project1Path, "<Project></Project>");
         File.WriteAllText(project2Path, "<Project></Project>");
+        File.WriteAllText(project3Path, "<Project></Project>");
+        File.WriteAllText(project4Path, "<Project></Project>");
 
         try
         {
@@ -32,9 +40,11 @@ EndProject
             var result = SolutionLoader.ExtractProjectsFromSolution(solutionPath);
 
             // Assert
-            Assert.Equal(2, result.Count);
+            Assert.Equal(4, result.Count);
             Assert.Contains(project1Path, result);
             Assert.Contains(project2Path, result);
+            Assert.Contains(project3Path, result);
+            Assert.Contains(project4Path, result);
         }
         finally
         {
@@ -42,6 +52,8 @@ EndProject
             if (File.Exists(solutionPath)) File.Delete(solutionPath);
             if (File.Exists(project1Path)) File.Delete(project1Path);
             if (File.Exists(project2Path)) File.Delete(project2Path);
+            if (File.Exists(project3Path)) File.Delete(project3Path);
+            if (File.Exists(project4Path)) File.Delete(project4Path);
         }
     }
 

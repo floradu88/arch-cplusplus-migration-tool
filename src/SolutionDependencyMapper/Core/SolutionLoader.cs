@@ -38,9 +38,11 @@ public class SolutionLoader
             {
                 var relativePath = match.Groups[1].Value.Trim();
                 
-                // Only include actual project files
+                // Only include actual project files (supported extensions)
                 if (relativePath.EndsWith(".vcxproj", StringComparison.OrdinalIgnoreCase) ||
-                    relativePath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                    relativePath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                    relativePath.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                    relativePath.EndsWith(".vcproj", StringComparison.OrdinalIgnoreCase))
                 {
                     // Resolve relative path to absolute path
                     var fullPath = Path.GetFullPath(Path.Combine(solutionDirectory, relativePath));
