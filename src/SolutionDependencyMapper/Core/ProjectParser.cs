@@ -80,8 +80,11 @@ public class ProjectParser
                 // Extract project references
                 node.ProjectDependencies = ExtractProjectReferences(project, projectPath);
 
-                // Extract external dependencies
-                node.ExternalDependencies = ExtractExternalDependencies(project);
+                // Extract structured references
+                ExtractStructuredReferences(project, projectPath, node);
+
+                // Extract backward-compatible flat dependencies (used by existing outputs)
+                node.ExternalDependencies = BuildFlatExternalDependencies(node);
 
                 // Extract additional properties
                 node.Properties = ExtractProperties(project);
@@ -276,6 +279,127 @@ public class ProjectParser
         }
 
         return dependencies.Distinct().ToList();
+    }
+
+    private static void ExtractStructuredReferences(Project project, string projectPath, ProjectNode node)
+    {
+        // Managed references
+        node.NuGetPackageReferences = ExtractNuGetPackageReferences(project);
+        node.FrameworkReferences = ExtractItemIncludes(project, "FrameworkReference");
+        node.AssemblyReferences = ExtractItemIncludes(project, "Reference");
+        node.ComReferences = ExtractItemIncludes(project, "COMReference");
+        node.AnalyzerReferences = ExtractItemIncludes(project, "Analyzer");
+
+        // Native references
+        node.NativeLibraries = ExtractListProperty(project, "AdditionalDependencies");
+        node.NativeDelayLoadDlls = ExtractListProperty(project, "DelayLoadDLLs");
+        node.NativeLibraryDirectories = ExtractListProperty(project, "AdditionalLibraryDirectories");
+        node.IncludeDirectories = ExtractListProperty(project, "AdditionalIncludeDirectories");
+        node.HeaderFiles = ExtractProjectItemPaths(project, projectPath, "ClInclude");
+    }
+
+    private static List<string> BuildFlatExternalDependencies(ProjectNode node)
+    {
+        // Keep the existing output behavior (external nodes, etc.) stable, but enrich it with the most relevant lists.
+        // NOTE: We intentionally do NOT include NuGet packages here to avoid huge diagrams by default.
+        var list = new List<string>();
+        list.AddRange(node.AssemblyReferences);
+        list.AddRange(node.FrameworkReferences);
+        list.AddRange(node.ComReferences);
+        list.AddRange(node.NativeLibraries);
+        list.AddRange(node.NativeDelayLoadDlls);
+        return list.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static List<string> ExtractItemIncludes(Project project, string itemType)
+    {
+        var items = new List<string>();
+        foreach (var item in project.GetItems(itemType))
+        {
+            var include = item.EvaluatedInclude;
+            if (!string.IsNullOrWhiteSpace(include))
+            {
+                items.Add(include.Trim());
+            }
+        }
+        return items.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static List<NuGetPackageReference> ExtractNuGetPackageReferences(Project project)
+    {
+        var packages = new List<NuGetPackageReference>();
+
+        foreach (var item in project.GetItems("PackageReference"))
+        {
+            var id = item.EvaluatedInclude?.Trim();
+            if (string.IsNullOrWhiteSpace(id))
+                continue;
+
+            var version = item.GetMetadataValue("Version");
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                // Some projects keep version in central package management or props; keep null in that case.
+                version = null;
+            }
+
+            var pkg = new NuGetPackageReference
+            {
+                Id = id,
+                Version = version,
+                PrivateAssets = NormalizeMetadata(item.GetMetadataValue("PrivateAssets")),
+                IncludeAssets = NormalizeMetadata(item.GetMetadataValue("IncludeAssets")),
+                ExcludeAssets = NormalizeMetadata(item.GetMetadataValue("ExcludeAssets"))
+            };
+
+            packages.Add(pkg);
+        }
+
+        // Distinct by package ID (keep first version/metadata encountered)
+        return packages
+            .GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? NormalizeMetadata(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static List<string> ExtractListProperty(Project project, string propertyName)
+    {
+        var raw = project.GetPropertyValue(propertyName);
+        if (string.IsNullOrWhiteSpace(raw))
+            return new List<string>();
+
+        var parts = raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // Drop MSBuild "append" macros like %(AdditionalIncludeDirectories)
+        return parts
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Where(p => !p.StartsWith("%(", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<string> ExtractProjectItemPaths(Project project, string projectPath, string itemType)
+    {
+        var results = new List<string>();
+        var projectDirectory = Path.GetDirectoryName(projectPath) ?? string.Empty;
+
+        foreach (var item in project.GetItems(itemType))
+        {
+            var include = item.EvaluatedInclude?.Trim();
+            if (string.IsNullOrWhiteSpace(include))
+                continue;
+
+            // Most vcxproj items are relative to the project directory.
+            var fullPath = Path.GetFullPath(Path.Combine(projectDirectory, include));
+            results.Add(fullPath);
+        }
+
+        return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>

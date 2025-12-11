@@ -242,6 +242,29 @@ class Program
         Console.WriteLine($"Total Projects: {projects.Count}");
         Console.WriteLine();
 
+        // Reference totals (structured)
+        var totalNuGet = projects.Sum(p => p.NuGetPackageReferences.Count);
+        var totalFrameworkRefs = projects.Sum(p => p.FrameworkReferences.Count);
+        var totalAssemblyRefs = projects.Sum(p => p.AssemblyReferences.Count);
+        var totalComRefs = projects.Sum(p => p.ComReferences.Count);
+        var totalAnalyzers = projects.Sum(p => p.AnalyzerReferences.Count);
+        var totalNativeLibs = projects.Sum(p => p.NativeLibraries.Count);
+        var totalDelayLoadDlls = projects.Sum(p => p.NativeDelayLoadDlls.Count);
+        var totalIncludeDirs = projects.Sum(p => p.IncludeDirectories.Count);
+        var totalHeaders = projects.Sum(p => p.HeaderFiles.Count);
+
+        Console.WriteLine("Reference Totals:");
+        Console.WriteLine($"  NuGet packages: {totalNuGet}");
+        Console.WriteLine($"  Framework references: {totalFrameworkRefs}");
+        Console.WriteLine($"  Assembly references: {totalAssemblyRefs}");
+        Console.WriteLine($"  COM references: {totalComRefs}");
+        Console.WriteLine($"  Analyzers: {totalAnalyzers}");
+        Console.WriteLine($"  Native libraries: {totalNativeLibs}");
+        Console.WriteLine($"  Delay-load DLLs: {totalDelayLoadDlls}");
+        Console.WriteLine($"  Include directories: {totalIncludeDirs}");
+        Console.WriteLine($"  Header files: {totalHeaders}");
+        Console.WriteLine();
+
         // Group by project type
         var projectsByType = projects
             .GroupBy(p => p.ProjectType ?? "Unknown")

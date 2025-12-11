@@ -8,25 +8,27 @@ namespace SolutionDependencyMapper.Tests.Core;
 
 public class ProjectParserTests
 {
+    private static bool EnsureMsBuildRegisteredOrSkip()
+    {
+        if (MSBuildLocator.IsRegistered)
+            return true;
+
+        var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
+        if (instances.Count > 0)
+        {
+            MSBuildLocator.RegisterInstance(instances[0]);
+            return true;
+        }
+
+        return false;
+    }
+
     [Fact]
     public void ParseProject_WithTargetFramework_ExtractsFramework()
     {
         // This test requires MSBuildLocator to be registered
         // We'll skip if not available, but test the logic if it is
-        if (!MSBuildLocator.IsRegistered)
-        {
-            // Try to register if possible
-            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
-            if (instances.Count > 0)
-            {
-                MSBuildLocator.RegisterInstance(instances[0]);
-            }
-            else
-            {
-                // Skip test if MSBuild is not available
-                return;
-            }
-        }
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
 
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
@@ -65,18 +67,7 @@ public class ProjectParserTests
     public void ParseProject_WithTargetFrameworks_ExtractsFirstFramework()
     {
         // This test requires MSBuildLocator to be registered
-        if (!MSBuildLocator.IsRegistered)
-        {
-            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
-            if (instances.Count > 0)
-            {
-                MSBuildLocator.RegisterInstance(instances[0]);
-            }
-            else
-            {
-                return;
-            }
-        }
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
 
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
@@ -117,18 +108,7 @@ public class ProjectParserTests
     public void ParseProject_WithVcxproj_ReturnsNullTargetFramework()
     {
         // This test requires MSBuildLocator to be registered
-        if (!MSBuildLocator.IsRegistered)
-        {
-            var instances = MSBuildLocator.QueryVisualStudioInstances().ToList();
-            if (instances.Count > 0)
-            {
-                MSBuildLocator.RegisterInstance(instances[0]);
-            }
-            else
-            {
-                return;
-            }
-        }
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
 
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
@@ -209,6 +189,97 @@ public class ProjectParserTests
             {
                 Directory.Delete(tempDir, true);
             }
+        }
+    }
+
+    [Fact]
+    public void ParseProject_ManagedProject_ExtractsPackageAndFrameworkAndAssemblyReferences()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var referencedProjectPath = Path.Combine(tempDir, "Lib.csproj");
+        var projectPath = Path.Combine(tempDir, "App.csproj");
+
+        File.WriteAllText(referencedProjectPath, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+</Project>");
+
+        File.WriteAllText(projectPath, $@"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include=""Lib.csproj"" />
+    <PackageReference Include=""Newtonsoft.Json"" Version=""13.0.3"" />
+    <FrameworkReference Include=""Microsoft.AspNetCore.App"" />
+    <Reference Include=""System.Xml"" />
+  </ItemGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+
+            Assert.NotNull(result);
+            Assert.Contains(referencedProjectPath, result.ProjectDependencies);
+            Assert.Contains(result.NuGetPackageReferences, p => p.Id == "Newtonsoft.Json" && p.Version == "13.0.3");
+            Assert.Contains("Microsoft.AspNetCore.App", result.FrameworkReferences);
+            Assert.Contains("System.Xml", result.AssemblyReferences);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_Vcxproj_ExtractsNativeLibsIncludeDirsAndHeaders()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var headerPath = Path.Combine(tempDir, "foo.h");
+        var projectPath = Path.Combine(tempDir, "Native.vcxproj");
+
+        File.WriteAllText(headerPath, "// header");
+        File.WriteAllText(projectPath, @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
+  <ItemGroup>
+    <ClInclude Include=""foo.h"" />
+  </ItemGroup>
+  <PropertyGroup>
+    <ConfigurationType>Application</ConfigurationType>
+    <AdditionalDependencies>user32.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    <AdditionalIncludeDirectories>$(ProjectDir)include;C:\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    <AdditionalLibraryDirectories>$(ProjectDir)lib;C:\3rdparty\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    <DelayLoadDLLs>dbghelp.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+
+            Assert.NotNull(result);
+            Assert.Contains("user32.lib", result.NativeLibraries);
+            Assert.Contains("ws2_32.lib", result.NativeLibraries);
+            Assert.Contains("C:\\3rdparty\\include", result.IncludeDirectories);
+            Assert.Contains("C:\\3rdparty\\lib", result.NativeLibraryDirectories);
+            Assert.Contains("dbghelp.dll", result.NativeDelayLoadDlls);
+            Assert.Contains(headerPath, result.HeaderFiles);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
 }

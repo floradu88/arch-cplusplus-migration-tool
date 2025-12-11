@@ -35,6 +35,25 @@ public class JsonGenerator
             TargetFramework = p.TargetFramework,
             ProjectDependencies = p.ProjectDependencies,
             ExternalDependencies = p.ExternalDependencies,
+
+            // Structured references
+            NuGetPackageReferences = p.NuGetPackageReferences.Select(x => new
+            {
+                x.Id,
+                x.Version,
+                x.PrivateAssets,
+                x.IncludeAssets,
+                x.ExcludeAssets
+            }),
+            FrameworkReferences = p.FrameworkReferences,
+            AssemblyReferences = p.AssemblyReferences,
+            ComReferences = p.ComReferences,
+            AnalyzerReferences = p.AnalyzerReferences,
+            NativeLibraries = p.NativeLibraries,
+            NativeDelayLoadDlls = p.NativeDelayLoadDlls,
+            NativeLibraryDirectories = p.NativeLibraryDirectories,
+            IncludeDirectories = p.IncludeDirectories,
+            HeaderFiles = p.HeaderFiles,
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

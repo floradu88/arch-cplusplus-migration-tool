@@ -139,6 +139,26 @@ public class MermaidGenerator
         }
 
         sb.AppendLine();
+        sb.AppendLine("## Reference Summary (Packages / Assemblies / Native / Includes)");
+        sb.AppendLine();
+        sb.AppendLine("This section summarizes the reference types found per project. Detailed lists are available in `dependency-tree.json`.");
+        sb.AppendLine();
+
+        foreach (var p in graph.Nodes.Values.OrderBy(p => p.Name))
+        {
+            sb.AppendLine($"- **{p.Name}**: " +
+                          $"NuGet={p.NuGetPackageReferences.Count}, " +
+                          $"FrameworkRefs={p.FrameworkReferences.Count}, " +
+                          $"AssemblyRefs={p.AssemblyReferences.Count}, " +
+                          $"COMRefs={p.ComReferences.Count}, " +
+                          $"Analyzers={p.AnalyzerReferences.Count}, " +
+                          $"NativeLibs={p.NativeLibraries.Count}, " +
+                          $"DelayLoadDlls={p.NativeDelayLoadDlls.Count}, " +
+                          $"IncludeDirs={p.IncludeDirectories.Count}, " +
+                          $"Headers={p.HeaderFiles.Count}");
+        }
+
+        sb.AppendLine();
         sb.AppendLine("## Project Types and ToolsVersion");
         sb.AppendLine();
         

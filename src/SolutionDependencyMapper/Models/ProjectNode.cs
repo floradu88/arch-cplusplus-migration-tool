@@ -12,8 +12,29 @@ public class ProjectNode
     public string TargetName { get; set; } = string.Empty;
     public string TargetExtension { get; set; } = string.Empty;
     public List<string> ProjectDependencies { get; set; } = new();
+
+    /// <summary>
+    /// Backward-compatible "flat" dependency list (used by existing outputs).
+    /// Prefer the structured reference fields below for new functionality.
+    /// </summary>
     public List<string> ExternalDependencies { get; set; } = new();
     public Dictionary<string, string> Properties { get; set; } = new();
+
+    // -------------------- Structured references (new) --------------------
+
+    // Managed (.csproj/.vbproj/.fsproj) references
+    public List<NuGetPackageReference> NuGetPackageReferences { get; set; } = new();
+    public List<string> FrameworkReferences { get; set; } = new();
+    public List<string> AssemblyReferences { get; set; } = new();
+    public List<string> ComReferences { get; set; } = new();
+    public List<string> AnalyzerReferences { get; set; } = new();
+
+    // Native (vcxproj/vcproj) references
+    public List<string> NativeLibraries { get; set; } = new();              // e.g., user32.lib
+    public List<string> NativeDelayLoadDlls { get; set; } = new();          // e.g., foo.dll
+    public List<string> NativeLibraryDirectories { get; set; } = new();     // e.g., $(ProjectDir)lib;C:\3rdparty\lib
+    public List<string> IncludeDirectories { get; set; } = new();           // e.g., $(ProjectDir)include;C:\3rdparty\include
+    public List<string> HeaderFiles { get; set; } = new();                  // e.g., *.h tracked as project items
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }

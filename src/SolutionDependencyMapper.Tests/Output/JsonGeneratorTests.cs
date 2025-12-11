@@ -219,5 +219,61 @@ public class JsonGeneratorTests
             if (File.Exists(tempFile)) File.Delete(tempFile);
         }
     }
+
+    [Fact]
+    public void Generate_IncludesStructuredReferences()
+    {
+        // Arrange
+        var tempFile = Path.GetTempFileName();
+        var graph = new DependencyGraph
+        {
+            Nodes = new Dictionary<string, ProjectNode>
+            {
+                ["A"] = new ProjectNode
+                {
+                    Path = "A.csproj",
+                    Name = "ProjectA",
+                    OutputType = "Exe",
+                    TargetFramework = "net8.0",
+                    NuGetPackageReferences = new List<NuGetPackageReference>
+                    {
+                        new NuGetPackageReference { Id = "Newtonsoft.Json", Version = "13.0.3" }
+                    },
+                    FrameworkReferences = new List<string> { "Microsoft.AspNetCore.App" },
+                    AssemblyReferences = new List<string> { "System.Xml" },
+                    NativeLibraries = new List<string> { "user32.lib" },
+                    IncludeDirectories = new List<string> { @"C:\include" },
+                    HeaderFiles = new List<string> { @"C:\foo.h" }
+                }
+            },
+            Edges = new List<DependencyEdge>(),
+            BuildLayers = new List<BuildLayer>(),
+            Cycles = new List<List<string>>()
+        };
+
+        try
+        {
+            // Act
+            JsonGenerator.Generate(graph, tempFile);
+
+            // Assert
+            var content = File.ReadAllText(tempFile);
+            Assert.Contains("nuGetPackageReferences", content);
+            Assert.Contains("Newtonsoft.Json", content);
+            Assert.Contains("frameworkReferences", content);
+            Assert.Contains("Microsoft.AspNetCore.App", content);
+            Assert.Contains("assemblyReferences", content);
+            Assert.Contains("System.Xml", content);
+            Assert.Contains("nativeLibraries", content);
+            Assert.Contains("user32.lib", content);
+            Assert.Contains("includeDirectories", content);
+            Assert.Contains("C:\\\\include", content);
+            Assert.Contains("headerFiles", content);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
 }
 
