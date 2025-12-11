@@ -97,7 +97,8 @@ class Program
 
             Console.WriteLine($"Loading solution: {solutionPath}");
 
-            var projectPaths = SolutionLoader.ExtractProjectsFromSolution(solutionPath);
+            var solutionInfo = SolutionLoader.ExtractSolutionInfo(solutionPath);
+            var projectPaths = solutionInfo.Projects.Select(p => p.FullPath).ToList();
             Console.WriteLine($"Found {projectPaths.Count} projects.");
 
             if (projectPaths.Count == 0)
@@ -123,6 +124,13 @@ class Program
                     var project = ProjectParser.ParseProject(projectPath, assumeVsEnv, maxRetries: 1, autoInstallPackages: autoInstallPackages);
                     if (project != null)
                     {
+                        var match = solutionInfo.Projects.FirstOrDefault(p => string.Equals(p.FullPath, projectPath, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                        {
+                            project.SolutionProjectGuid = match.ProjectGuid;
+                            project.SolutionConfigurationMappings = match.ConfigurationMappings;
+                        }
+
                         projects.Add(project);
                         Console.WriteLine($"    ✓ Successfully parsed: {Path.GetFileName(projectPath)}");
                     }
@@ -275,6 +283,20 @@ class Program
         Console.WriteLine($"  Configurations: {(allConfigs.Count == 0 ? "N/A" : string.Join(", ", allConfigs))}");
         Console.WriteLine($"  Platforms: {(allPlatforms.Count == 0 ? "N/A" : string.Join(", ", allPlatforms))}");
         Console.WriteLine();
+
+        var solutionPairs = projects
+            .SelectMany(p => p.SolutionConfigurationMappings)
+            .Select(m => m.Solution.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (solutionPairs.Count > 0)
+        {
+            Console.WriteLine("Solution Build Matrix (from .sln ProjectConfigurationPlatforms):");
+            Console.WriteLine($"  Solution Configuration|Platform pairs: {string.Join(", ", solutionPairs)}");
+            Console.WriteLine();
+        }
 
         // Group by project type
         var projectsByType = projects

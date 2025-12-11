@@ -31,6 +31,7 @@ This tool helps you understand and migrate complex Visual Studio solutions by:
 - ✅ **Project Type Detection** - Identifies project types (C# Project, C++ Project, etc.) from file extensions
 - ✅ **ToolsVersion Reporting** - Extracts and reports MSBuild ToolsVersion for each project
 - ✅ **Solution Summary Report** - Comprehensive report with project types, ToolsVersion distribution, and statistics
+- ✅ **Solution Configuration Mapping** - Parses `.sln` configuration/platform mapping (solution cfg/platform → project cfg/platform)
 - ✅ **Error Resilience** - Continues parsing all projects even when individual projects fail
 - ⏳ **CMake Generation** - Auto-generate CMakeLists.txt (pending)
 
@@ -192,6 +193,9 @@ Output Types:
   DynamicLibrary: 5 project(s)
   StaticLibrary: 7 project(s)
 
+Solution Build Matrix (from .sln ProjectConfigurationPlatforms):
+  Solution Configuration|Platform pairs: Debug|Any CPU, Release|Any CPU
+
 Project Details:
 ----------------------------------------------------------------------
 Project Name                   Type            ToolsVersion  Output    
@@ -247,6 +251,18 @@ Machine-readable JSON containing all project metadata, dependencies, and migrati
     "targetFramework": null,
     "projectDependencies": [],
     "externalDependencies": [],
+    "configurations": ["Debug","Release"],
+    "platforms": ["Win32","x64"],
+    "configurationPlatforms": ["Debug|Win32","Release|x64"],
+    "solutionProjectGuid": "22222222-2222-2222-2222-222222222222",
+    "solutionConfigurationMappings": [
+      {
+        "solution": { "configuration": "Debug", "platform": "Any CPU", "key": "Debug|Any CPU" },
+        "project":  { "configuration": "Debug", "platform": "Win32", "key": "Debug|Win32" },
+        "build": true,
+        "deploy": false
+      }
+    ],
     "properties": {
       "Configuration": "Release",
       "Platform": "x64"

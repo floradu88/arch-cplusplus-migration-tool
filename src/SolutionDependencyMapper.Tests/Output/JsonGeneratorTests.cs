@@ -273,6 +273,8 @@ public class JsonGeneratorTests
             Assert.Contains("configurations", content);
             Assert.Contains("platforms", content);
             Assert.Contains("configurationPlatforms", content);
+            Assert.Contains("solutionProjectGuid", content);
+            Assert.Contains("solutionConfigurationMappings", content);
         }
         finally
         {

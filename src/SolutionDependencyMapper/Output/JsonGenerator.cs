@@ -65,6 +65,15 @@ public class JsonGenerator
             Configurations = p.Configurations,
             Platforms = p.Platforms,
             ConfigurationPlatforms = p.ConfigurationPlatforms,
+
+            SolutionProjectGuid = p.SolutionProjectGuid,
+            SolutionConfigurationMappings = p.SolutionConfigurationMappings.Select(m => new
+            {
+                Solution = new { m.Solution.Configuration, m.Solution.Platform, Key = m.Solution.Key },
+                Project = new { m.Project.Configuration, m.Project.Platform, Key = m.Project.Key },
+                m.Build,
+                m.Deploy
+            }),
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

@@ -108,6 +108,9 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
 - Resolve relative paths to absolute paths
 - Handle nested directory structures
 - Support solution folders and configurations
+- Parse solution-level build matrix:
+  - `GlobalSection(ProjectConfigurationPlatforms)` mapping
+  - Solution `Configuration|Platform` → per-project `Configuration|Platform` (and Build/Deploy flags)
 
 **Input**: `.sln` file path  
 **Output**: List of project file paths

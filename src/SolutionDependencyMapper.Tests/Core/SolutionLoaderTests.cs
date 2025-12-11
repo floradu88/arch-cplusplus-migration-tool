@@ -58,6 +58,67 @@ EndProject
     }
 
     [Fact]
+    public void ExtractSolutionInfo_ParsesProjectConfigurationPlatformsMapping()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var solutionPath = Path.Combine(tempDir, "TestSolution.sln");
+        var csprojPath = Path.Combine(tempDir, "App.csproj");
+        var vcxprojPath = Path.Combine(tempDir, "Native.vcxproj");
+
+        File.WriteAllText(csprojPath, "<Project></Project>");
+        File.WriteAllText(vcxprojPath, "<Project></Project>");
+
+        var csGuid = "11111111-1111-1111-1111-111111111111";
+        var cppGuid = "22222222-2222-2222-2222-222222222222";
+
+        var sln = $@"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project(""{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}"") = ""App"", ""App.csproj"", ""{{{csGuid}}}""
+EndProject
+Project(""{{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}}"") = ""Native"", ""Native.vcxproj"", ""{{{cppGuid}}}""
+EndProject
+Global
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {{{csGuid}}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {{{csGuid}}}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {{{csGuid}}}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {{{cppGuid}}}.Debug|Any CPU.ActiveCfg = Debug|Win32
+        {{{cppGuid}}}.Debug|Any CPU.Build.0 = Debug|Win32
+        {{{cppGuid}}}.Release|Any CPU.ActiveCfg = Release|x64
+    EndGlobalSection
+EndGlobal
+";
+
+        File.WriteAllText(solutionPath, sln);
+
+        try
+        {
+            // Act
+            var info = SolutionLoader.ExtractSolutionInfo(solutionPath);
+
+            // Assert
+            Assert.Equal(2, info.Projects.Count);
+
+            var app = info.Projects.Single(p => p.FullPath == csprojPath);
+            Assert.Equal(csGuid, app.ProjectGuid, ignoreCase: true);
+            Assert.Contains(app.ConfigurationMappings, m => m.Solution.Key == "Debug|Any CPU" && m.Project.Key == "Debug|Any CPU" && m.Build);
+            Assert.Contains(app.ConfigurationMappings, m => m.Solution.Key == "Release|Any CPU" && m.Project.Key == "Release|Any CPU");
+
+            var native = info.Projects.Single(p => p.FullPath == vcxprojPath);
+            Assert.Equal(cppGuid, native.ProjectGuid, ignoreCase: true);
+            Assert.Contains(native.ConfigurationMappings, m => m.Solution.Key == "Debug|Any CPU" && m.Project.Key == "Debug|Win32" && m.Build);
+            Assert.Contains(native.ConfigurationMappings, m => m.Solution.Key == "Release|Any CPU" && m.Project.Key == "Release|x64");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void ExtractProjectsFromSolution_FileNotFound_ThrowsFileNotFoundException()
     {
         // Arrange

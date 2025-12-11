@@ -146,6 +146,7 @@ public class MermaidGenerator
 
         foreach (var p in graph.Nodes.Values.OrderBy(p => p.Name))
         {
+            var solPairs = p.SolutionConfigurationMappings.Select(m => m.Solution.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             sb.AppendLine($"- **{p.Name}**: " +
                           $"NuGet={p.NuGetPackageReferences.Count}, " +
                           $"FrameworkRefs={p.FrameworkReferences.Count}, " +
@@ -158,7 +159,8 @@ public class MermaidGenerator
                           $"Headers={p.HeaderFiles.Count}, " +
                           $"MissingRefs={p.ReferenceValidationIssues.Count}, " +
                           $"Configs={p.Configurations.Count}, " +
-                          $"Platforms={p.Platforms.Count}");
+                          $"Platforms={p.Platforms.Count}, " +
+                          $"SolCfgPairs={solPairs}");
         }
 
         sb.AppendLine();

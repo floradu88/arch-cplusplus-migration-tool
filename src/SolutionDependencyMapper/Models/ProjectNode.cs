@@ -43,6 +43,10 @@ public class ProjectNode
     public List<string> Configurations { get; set; } = new();            // e.g., Debug, Release, Custom
     public List<string> Platforms { get; set; } = new();                 // e.g., AnyCPU, x64, Win32
     public List<string> ConfigurationPlatforms { get; set; } = new();    // e.g., Debug|AnyCPU
+
+    // Solution-level configuration mapping (from .sln ProjectConfigurationPlatforms)
+    public string? SolutionProjectGuid { get; set; }
+    public List<SolutionConfigurationMapping> SolutionConfigurationMappings { get; set; } = new();
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }
