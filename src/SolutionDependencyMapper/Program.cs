@@ -267,6 +267,15 @@ class Program
         Console.WriteLine($"  Missing/invalid reference paths: {totalValidationIssues}");
         Console.WriteLine();
 
+        // Build matrix summary
+        var allConfigs = projects.SelectMany(p => p.Configurations).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        var allPlatforms = projects.SelectMany(p => p.Platforms).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+        Console.WriteLine("Build Matrix:");
+        Console.WriteLine($"  Configurations: {(allConfigs.Count == 0 ? "N/A" : string.Join(", ", allConfigs))}");
+        Console.WriteLine($"  Platforms: {(allPlatforms.Count == 0 ? "N/A" : string.Join(", ", allPlatforms))}");
+        Console.WriteLine();
+
         // Group by project type
         var projectsByType = projects
             .GroupBy(p => p.ProjectType ?? "Unknown")

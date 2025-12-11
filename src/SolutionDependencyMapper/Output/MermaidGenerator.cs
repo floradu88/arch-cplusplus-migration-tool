@@ -156,7 +156,9 @@ public class MermaidGenerator
                           $"DelayLoadDlls={p.NativeDelayLoadDlls.Count}, " +
                           $"IncludeDirs={p.IncludeDirectories.Count}, " +
                           $"Headers={p.HeaderFiles.Count}, " +
-                          $"MissingRefs={p.ReferenceValidationIssues.Count}");
+                          $"MissingRefs={p.ReferenceValidationIssues.Count}, " +
+                          $"Configs={p.Configurations.Count}, " +
+                          $"Platforms={p.Platforms.Count}");
         }
 
         sb.AppendLine();

@@ -61,6 +61,10 @@ public class JsonGenerator
                 i.ResolvedPath,
                 i.Details
             }),
+
+            Configurations = p.Configurations,
+            Platforms = p.Platforms,
+            ConfigurationPlatforms = p.ConfigurationPlatforms,
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

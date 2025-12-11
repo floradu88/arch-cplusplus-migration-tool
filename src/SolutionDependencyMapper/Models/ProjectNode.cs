@@ -38,6 +38,11 @@ public class ProjectNode
 
     // Validation results (existence checks for file/path-based references)
     public List<ReferenceValidationIssue> ReferenceValidationIssues { get; set; } = new();
+
+    // Build matrix (configurations/platforms)
+    public List<string> Configurations { get; set; } = new();            // e.g., Debug, Release, Custom
+    public List<string> Platforms { get; set; } = new();                 // e.g., AnyCPU, x64, Win32
+    public List<string> ConfigurationPlatforms { get; set; } = new();    // e.g., Debug|AnyCPU
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }

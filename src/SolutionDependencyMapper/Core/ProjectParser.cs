@@ -1,5 +1,6 @@
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Locator;
+using Microsoft.Build.Construction;
 using SolutionDependencyMapper.Models;
 using SolutionDependencyMapper.Utils;
 
@@ -88,6 +89,9 @@ public class ProjectParser
 
                 // Validate that key file/path-based references exist (non-building check)
                 ReferenceValidator.Validate(project, projectPath, node);
+
+                // Extract build matrix (Configurations / Platforms / pairs)
+                ExtractBuildMatrix(project, projectPath, node);
 
                 // Extract additional properties
                 node.Properties = ExtractProperties(project);
@@ -403,6 +407,155 @@ public class ProjectParser
         }
 
         return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static void ExtractBuildMatrix(Project project, string projectPath, ProjectNode node)
+    {
+        var configs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var platforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // 1) Native projects typically define ProjectConfiguration items like Debug|Win32
+        foreach (var item in project.GetItems("ProjectConfiguration"))
+        {
+            var include = item.EvaluatedInclude?.Trim();
+            if (string.IsNullOrWhiteSpace(include) || !include.Contains('|'))
+                continue;
+
+            var parts = include.Split('|', 2, StringSplitOptions.TrimEntries);
+            if (!string.IsNullOrWhiteSpace(parts[0])) configs.Add(parts[0]);
+            if (!string.IsNullOrWhiteSpace(parts[1])) platforms.Add(parts[1]);
+            pairs.Add($"{parts[0]}|{parts[1]}");
+        }
+
+        // 2) Managed projects often declare Configurations/Platforms properties
+        AddSemicolonList(configs, project.GetPropertyValue("Configurations"));
+        AddSemicolonList(platforms, project.GetPropertyValue("Platforms"));
+
+        // If Configurations is not explicitly set, assume standard defaults
+        if (configs.Count == 0)
+        {
+            configs.Add("Debug");
+            configs.Add("Release");
+        }
+
+        // If Platforms is not explicitly set, assume AnyCPU for managed projects
+        if (platforms.Count == 0 && (projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                                     projectPath.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase)))
+        {
+            platforms.Add("AnyCPU");
+        }
+
+        // 3) Extract from PropertyGroup Condition patterns ('$(Configuration)|$(Platform)'=='Debug|AnyCPU')
+        try
+        {
+            ProjectRootElement? xml = project.Xml;
+            if (xml != null)
+            {
+                foreach (var pg in xml.PropertyGroups)
+                {
+                    var cond = pg.Condition ?? string.Empty;
+                    if (TryParseConfigPlatformFromCondition(cond, out var cfg, out var plat))
+                    {
+                        if (!string.IsNullOrWhiteSpace(cfg)) configs.Add(cfg);
+                        if (!string.IsNullOrWhiteSpace(plat)) platforms.Add(plat);
+                        if (!string.IsNullOrWhiteSpace(cfg) && !string.IsNullOrWhiteSpace(plat))
+                        {
+                            pairs.Add($"{cfg}|{plat}");
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Best-effort only; skip if MSBuild XML isn't available.
+        }
+
+        // If we have both sets but no explicit pairs, create Cartesian product.
+        if (pairs.Count == 0 && configs.Count > 0 && platforms.Count > 0)
+        {
+            foreach (var c in configs)
+            foreach (var p in platforms)
+                pairs.Add($"{c}|{p}");
+        }
+
+        node.Configurations = configs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        node.Platforms = platforms.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        node.ConfigurationPlatforms = pairs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static void AddSemicolonList(HashSet<string> target, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        foreach (var part in value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!string.IsNullOrWhiteSpace(part))
+                target.Add(part);
+        }
+    }
+
+    private static bool TryParseConfigPlatformFromCondition(string condition, out string? configuration, out string? platform)
+    {
+        configuration = null;
+        platform = null;
+
+        if (string.IsNullOrWhiteSpace(condition))
+            return false;
+
+        // Common forms:
+        //  - "'$(Configuration)|$(Platform)'=='Debug|AnyCPU'"
+        //  - " '$(Configuration)|$(Platform)' == 'Release|x64' "
+        //  - "'$(Configuration)'=='Debug'"
+        //  - "'$(Platform)'=='x64'"
+        //
+        // Strategy: if the condition references both Configuration and Platform, capture the right-hand quoted value.
+        if (condition.Contains("$(Configuration)", StringComparison.OrdinalIgnoreCase) &&
+            condition.Contains("$(Platform)", StringComparison.OrdinalIgnoreCase))
+        {
+            var rhs = System.Text.RegularExpressions.Regex.Match(
+                condition,
+                @"==\s*'([^']+)'\s*$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (rhs.Success)
+            {
+                var value = rhs.Groups[1].Value.Trim();
+                if (value.Contains('|'))
+                {
+                    var parts = value.Split('|', 2, StringSplitOptions.TrimEntries);
+                    configuration = parts[0];
+                    platform = parts[1];
+                    return true;
+                }
+            }
+        }
+
+        var mc = System.Text.RegularExpressions.Regex.Match(
+            condition,
+            @"\$\(\s*Configuration\s*\)'\s*==\s*'\s*([^']+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (mc.Success)
+        {
+            configuration = mc.Groups[1].Value.Trim();
+            return true;
+        }
+
+        var mp = System.Text.RegularExpressions.Regex.Match(
+            condition,
+            @"\$\(\s*Platform\s*\)'\s*==\s*'\s*([^']+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (mp.Success)
+        {
+            platform = mp.Groups[1].Value.Trim();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

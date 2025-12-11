@@ -232,6 +232,10 @@ public class ProjectParserTests
             Assert.Contains(result.NuGetPackageReferences, p => p.Id == "Newtonsoft.Json" && p.Version == "13.0.3");
             Assert.Contains("Microsoft.AspNetCore.App", result.FrameworkReferences);
             Assert.Contains("System.Xml", result.AssemblyReferences);
+
+            Assert.Contains("Debug", result.Configurations, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("Release", result.Configurations, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("AnyCPU", result.Platforms, StringComparer.OrdinalIgnoreCase);
         }
         finally
         {
@@ -345,6 +349,51 @@ public class ProjectParserTests
             var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
             Assert.NotNull(result);
             Assert.Contains(result.ReferenceValidationIssues, i => i.Category == "HeaderFile");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_Vcxproj_ExtractsConfigurationsAndPlatformsFromProjectConfigurations()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var projectPath = Path.Combine(tempDir, "Native.vcxproj");
+
+        File.WriteAllText(projectPath, @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
+  <ItemGroup Label=""ProjectConfigurations"">
+    <ProjectConfiguration Include=""Debug|Win32"">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include=""Release|x64"">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
+            Assert.NotNull(result);
+
+            Assert.Contains("Debug", result.Configurations);
+            Assert.Contains("Release", result.Configurations);
+            Assert.Contains("Win32", result.Platforms);
+            Assert.Contains("x64", result.Platforms);
+            Assert.Contains("Debug|Win32", result.ConfigurationPlatforms);
+            Assert.Contains("Release|x64", result.ConfigurationPlatforms);
         }
         finally
         {
