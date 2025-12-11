@@ -1,6 +1,6 @@
 # Solution Dependency Mapper
 
-A cross-platform .NET 8.0 tool that analyzes Visual Studio solutions containing mixed native (C++) and managed (.NET) projects. It extracts dependency relationships, identifies project types and outputs, and generates visual diagrams and build scripts to facilitate migration and modernization of legacy C++ ecosystems.
+A cross-platform .NET tool (supports .NET 8 and 9, with .NET 10 support planned) that analyzes Visual Studio solutions containing mixed native (C++) and managed (.NET) projects. It extracts dependency relationships, identifies project types and outputs, and generates visual diagrams and build scripts to facilitate migration and modernization of legacy C++ ecosystems.
 
 ## 🎯 Overview
 
@@ -34,7 +34,7 @@ This tool helps you understand and migrate complex Visual Studio solutions by:
 
 ## 📋 Requirements
 
-- .NET 8.0 SDK or later
+- .NET 8.0 or 9.0 SDK (the tool supports both versions, .NET 10 support planned)
 - MSBuild (via MSBuildLocator - no Visual Studio installation required)
 - Windows: PowerShell 5.1+ or PowerShell Core
 - Linux/macOS: Bash shell
@@ -420,12 +420,21 @@ SolutionDependencyMapper/
 
 - **Native C++**: `.vcxproj` (Visual Studio C++ projects)
 - **Managed .NET**: `.csproj` (C# projects)
+  - .NET Framework (all versions)
+  - .NET Core 3.1+
+  - .NET 5.0+
+  - .NET 6.0+
+  - .NET 7.0+
+  - .NET 8.0+
+  - .NET 9.0+
+  - .NET 10.0+ (when available)
 - **Mixed**: Solutions containing both native and managed projects
 
 ## 🔧 Supported Solution Formats
 
 - Visual Studio 2010 and later (`.sln` format)
-- Tested with VS2010, VS2015, VS2017, VS2019, VS2022
+- **Fully tested with**: VS2010, VS2015, VS2017, VS2019, VS2022, VS2025, VS2026
+- **Tool discovery supports**: VS2022, VS2025, VS2026 (64-bit), VS2019, VS2017 (32-bit)
 
 ## 🌍 Platform Support
 

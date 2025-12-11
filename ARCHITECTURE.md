@@ -526,7 +526,7 @@ echo "=== Build Complete ==="
 ## Technical Requirements
 
 ### Runtime Requirements
-- **.NET 8.0 SDK or later** (cross-platform runtime, LTS version)
+- **.NET 8.0 or 9.0 SDK** (cross-platform runtime, supports multiple versions, .NET 10 support planned)
 - **MSBuild** (via MSBuildLocator - no Visual Studio installation required)
 - **Windows**: PowerShell 5.1+ or PowerShell Core
 - **Linux/macOS**: Bash shell
@@ -549,7 +549,7 @@ System.Text.Json (included in .NET 8+)
 
 ### Supported Solution Formats
 - Visual Studio 2010 and later (`.sln` format)
-- Tested with VS2010, VS2015, VS2017, VS2019, VS2022
+- Tested with VS2010, VS2015, VS2017, VS2019, VS2022, VS2025, VS2026
 
 ### Platform Support
 - ✅ Windows (x64, x86)

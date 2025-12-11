@@ -240,6 +240,18 @@ public static class ToolFinder
 
         var vsPaths = new[]
         {
+            // VS 2026 (64-bit) - Future version
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2026", "Enterprise"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2026", "Professional"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2026", "Community"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2026", "BuildTools"),
+
+            // VS 2025 (64-bit)
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2025", "Enterprise"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2025", "Professional"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2025", "Community"),
+            Path.Combine(programFiles, "Microsoft Visual Studio", "2025", "BuildTools"),
+
             // VS 2022 (64-bit)
             Path.Combine(programFiles, "Microsoft Visual Studio", "2022", "Enterprise"),
             Path.Combine(programFiles, "Microsoft Visual Studio", "2022", "Professional"),
