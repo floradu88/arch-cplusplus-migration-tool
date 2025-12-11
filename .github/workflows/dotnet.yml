@@ -27,12 +27,12 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage"
     
+    - name: Install ReportGenerator
+      run: dotnet tool install -g dotnet-reportgenerator-globaltool
+    
     - name: Generate Coverage Report
-      uses: danielpalme/ReportGenerator-GitHub-Action@5.3.2
-      with:
-        reports: '**/coverage.cobertura.xml'
-        targetdir: 'coverage'
-        reporttypes: 'HtmlInline_AzurePipelines;Cobertura;Badges'
+      run: reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coverage -reporttypes:"HtmlInline_AzurePipelines;Cobertura;Badges"
+      continue-on-error: true
     
     - name: Upload Coverage Reports
       uses: codecov/codecov-action@v4
