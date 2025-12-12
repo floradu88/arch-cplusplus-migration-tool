@@ -21,6 +21,13 @@ public sealed class ProjectConfigurationSnapshot
     public List<string> IncludeDirectories { get; set; } = new();
     public List<string> HeaderFiles { get; set; } = new();
 
+    public List<string> ForcedIncludeFiles { get; set; } = new();
+    public List<string> AdditionalUsingDirectories { get; set; } = new();
+    public List<string> ResourceFiles { get; set; } = new();
+    public List<string> SourceFiles { get; set; } = new();
+    public List<string> MasmFiles { get; set; } = new();
+    public List<string> IdlFiles { get; set; } = new();
+
     public List<ReferenceValidationIssue> ReferenceValidationIssues { get; set; } = new();
 
     public OutputArtifactStatus? OutputArtifact { get; set; }

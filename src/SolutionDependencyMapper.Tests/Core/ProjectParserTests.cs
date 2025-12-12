@@ -300,6 +300,10 @@ public class ProjectParserTests
 <Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
   <ItemGroup>
     <ClInclude Include=""foo.h"" />
+    <ResourceCompile Include=""native.rc"" />
+    <ClCompile Include=""main.cpp"" />
+    <Masm Include=""startup.asm"" />
+    <Midl Include=""types.idl"" />
   </ItemGroup>
   <PropertyGroup>
     <ConfigurationType>Application</ConfigurationType>
@@ -307,11 +311,18 @@ public class ProjectParserTests
     <AdditionalIncludeDirectories>$(ProjectDir)include;C:\3rdparty\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     <AdditionalLibraryDirectories>$(ProjectDir)lib;C:\3rdparty\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     <DelayLoadDLLs>dbghelp.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+    <ForcedIncludeFiles>foo.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+    <AdditionalUsingDirectories>$(ProjectDir)using;C:\3rdparty\using</AdditionalUsingDirectories>
   </PropertyGroup>
 </Project>");
 
         try
         {
+            File.WriteAllText(Path.Combine(tempDir, "native.rc"), "1 ICON \"app.ico\"");
+            File.WriteAllText(Path.Combine(tempDir, "main.cpp"), "int main() { return 0; }");
+            File.WriteAllText(Path.Combine(tempDir, "startup.asm"), "; asm");
+            File.WriteAllText(Path.Combine(tempDir, "types.idl"), "import \"oaidl.idl\";");
+
             var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false);
 
             Assert.NotNull(result);
@@ -321,6 +332,12 @@ public class ProjectParserTests
             Assert.Contains("C:\\3rdparty\\lib", result.NativeLibraryDirectories);
             Assert.Contains("dbghelp.dll", result.NativeDelayLoadDlls);
             Assert.Contains(headerPath, result.HeaderFiles);
+            Assert.Contains(headerPath, result.ForcedIncludeFiles);
+            Assert.Contains(Path.Combine(tempDir, "native.rc"), result.ResourceFiles);
+            Assert.Contains(Path.Combine(tempDir, "main.cpp"), result.SourceFiles);
+            Assert.Contains(Path.Combine(tempDir, "startup.asm"), result.MasmFiles);
+            Assert.Contains(Path.Combine(tempDir, "types.idl"), result.IdlFiles);
+            Assert.Contains("C:\\3rdparty\\using", result.AdditionalUsingDirectories);
         }
         finally
         {
@@ -518,6 +535,94 @@ public class ProjectParserTests
             Assert.NotNull(result.OutputArtifact);
             Assert.False(result.OutputArtifact!.Exists);
             Assert.EndsWith(Path.Combine("out", "Missing.dll"), result.OutputArtifact.ExpectedPath!.Replace('/', '\\'), StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_Vcproj_LegacyXmlFallback_ExtractsKeyRefsAndConfigs()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        // Note: the legacy vcproj parser itself is XML-only, but the SolutionDependencyMapper
+        // assembly uses MSBuild APIs (ExcludeAssets=runtime) and expects MSBuildLocator to be registered.
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var headerPath = Path.Combine(tempDir, "stdafx.h");
+        var cppPath = Path.Combine(tempDir, "main.cpp");
+        var rcPath = Path.Combine(tempDir, "app.rc");
+        var idlPath = Path.Combine(tempDir, "types.idl");
+        var asmPath = Path.Combine(tempDir, "startup.asm");
+
+        File.WriteAllText(headerPath, "// pch");
+        File.WriteAllText(cppPath, "int main(){return 0;}");
+        File.WriteAllText(rcPath, "1 ICON \"app.ico\"");
+        File.WriteAllText(idlPath, "import \"oaidl.idl\";");
+        File.WriteAllText(asmPath, "; asm");
+
+        var projectPath = Path.Combine(tempDir, "Legacy.vcproj");
+        File.WriteAllText(projectPath, $@"<?xml version=""1.0"" encoding=""Windows-1252""?>
+<VisualStudioProject ProjectType=""Visual C++"" Version=""8.00"" Name=""Legacy"">
+  <Platforms>
+    <Platform Name=""Win32""/>
+  </Platforms>
+  <Configurations>
+    <Configuration Name=""Debug|Win32"">
+      <Tool Name=""VCCLCompilerTool"" AdditionalIncludeDirectories=""$(ProjectDir)include;C:\3rdparty\include"" ForcedIncludeFiles=""stdafx.h"" />
+      <Tool Name=""VCLinkerTool"" AdditionalDependencies=""dbghelp.lib;user32.lib"" AdditionalLibraryDirectories=""$(ProjectDir)lib;C:\3rdparty\lib"" OutputFile=""$(ProjectDir)bin\Legacy.exe"" />
+    </Configuration>
+    <Configuration Name=""Release|Win32"">
+      <Tool Name=""VCCLCompilerTool"" AdditionalIncludeDirectories=""C:\3rdparty\include"" ForcedIncludeFiles=""stdafx.h"" />
+      <Tool Name=""VCLinkerTool"" AdditionalDependencies=""user32.lib"" AdditionalLibraryDirectories=""C:\3rdparty\lib"" OutputFile=""$(ProjectDir)bin\Legacy.exe"" />
+    </Configuration>
+  </Configurations>
+  <Files>
+    <Filter Name=""Source Files"">
+      <File RelativePath=""{Path.GetFileName(cppPath)}"" />
+    </Filter>
+    <Filter Name=""Header Files"">
+      <File RelativePath=""{Path.GetFileName(headerPath)}"" />
+    </Filter>
+    <Filter Name=""Resource Files"">
+      <File RelativePath=""{Path.GetFileName(rcPath)}"" />
+    </Filter>
+    <Filter Name=""IDL"">
+      <File RelativePath=""{Path.GetFileName(idlPath)}"" />
+    </Filter>
+    <Filter Name=""ASM"">
+      <File RelativePath=""{Path.GetFileName(asmPath)}"" />
+    </Filter>
+  </Files>
+</VisualStudioProject>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false, perConfigReferences: true, checkOutputs: true);
+            Assert.NotNull(result);
+            Assert.Equal("C++ Project (Legacy)", result!.ProjectType);
+            Assert.Contains("Debug", result.Configurations);
+            Assert.Contains("Release", result.Configurations);
+            Assert.Contains("Win32", result.Platforms);
+            Assert.Contains("Debug|Win32", result.ConfigurationPlatforms);
+
+            Assert.Contains("user32.lib", result.NativeLibraries, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("dbghelp.lib", result.NativeLibraries, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains(Path.Combine(tempDir, "stdafx.h"), result.ForcedIncludeFiles);
+            Assert.Contains(cppPath, result.SourceFiles);
+            Assert.Contains(headerPath, result.HeaderFiles);
+            Assert.Contains(rcPath, result.ResourceFiles);
+            Assert.Contains(idlPath, result.IdlFiles);
+            Assert.Contains(asmPath, result.MasmFiles);
+
+            Assert.True(result.ConfigurationSnapshots.Count >= 2);
+            var debug = result.ConfigurationSnapshots.First(s => s.Key.Equals("Debug|Win32", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("dbghelp.lib", debug.NativeLibraries, StringComparer.OrdinalIgnoreCase);
+            Assert.NotNull(debug.OutputArtifact);
+            Assert.False(string.IsNullOrWhiteSpace(debug.OutputArtifact!.ExpectedPath));
         }
         finally
         {

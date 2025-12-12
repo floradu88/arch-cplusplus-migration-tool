@@ -3,7 +3,7 @@ using SolutionDependencyMapper.Models;
 
 namespace SolutionDependencyMapper.Utils;
 
-internal static class NuGetAssetsParser
+public static class NuGetAssetsParser
 {
     public static List<ResolvedNuGetPackage> TryParseResolvedPackages(string projectAssetsJsonPath)
     {
@@ -74,7 +74,7 @@ internal static class NuGetAssetsParser
             }
 
             return results
-                .GroupBy(p => (p.TargetFramework ?? string.Empty, p.Id, p.Version), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(p => $"{p.TargetFramework ?? string.Empty}|{p.Id}|{p.Version}", StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
                 .OrderBy(p => p.TargetFramework, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(p => p.Id, StringComparer.OrdinalIgnoreCase)

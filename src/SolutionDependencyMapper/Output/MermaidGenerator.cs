@@ -159,6 +159,12 @@ public class MermaidGenerator
                           $"DelayLoadDlls={p.NativeDelayLoadDlls.Count}, " +
                           $"IncludeDirs={p.IncludeDirectories.Count}, " +
                           $"Headers={p.HeaderFiles.Count}, " +
+                          $"ForcedIncludes={p.ForcedIncludeFiles.Count}, " +
+                          $"UsingDirs={p.AdditionalUsingDirectories.Count}, " +
+                          $"Resources={p.ResourceFiles.Count}, " +
+                          $"Sources={p.SourceFiles.Count}, " +
+                          $"Masm={p.MasmFiles.Count}, " +
+                          $"Idl={p.IdlFiles.Count}, " +
                           $"MissingRefs={p.ReferenceValidationIssues.Count}, " +
                           $"Configs={p.Configurations.Count}, " +
                           $"Platforms={p.Platforms.Count}, " +

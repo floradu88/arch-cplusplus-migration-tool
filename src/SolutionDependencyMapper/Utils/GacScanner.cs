@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace SolutionDependencyMapper.Utils;
 
-internal static class GacScanner
+public static class GacScanner
 {
     public static List<string> TryListMicrosoftBuildAssembliesFromGac(ToolsContext? toolsContext)
     {

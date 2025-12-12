@@ -36,6 +36,14 @@ public class ProjectNode
     public List<string> IncludeDirectories { get; set; } = new();           // e.g., $(ProjectDir)include;C:\3rdparty\include
     public List<string> HeaderFiles { get; set; } = new();                  // e.g., *.h tracked as project items
 
+    // Additional native dependency sources (best-effort)
+    public List<string> ForcedIncludeFiles { get; set; } = new();           // e.g., pch.h / stdafx.h
+    public List<string> AdditionalUsingDirectories { get; set; } = new();   // /AI / additional using dirs (C++/CLI)
+    public List<string> ResourceFiles { get; set; } = new();                // .rc items
+    public List<string> SourceFiles { get; set; } = new();                  // .cpp / ClCompile items
+    public List<string> MasmFiles { get; set; } = new();                    // .asm / Masm items
+    public List<string> IdlFiles { get; set; } = new();                     // .idl / Midl items
+
     // Validation results (existence checks for file/path-based references)
     public List<ReferenceValidationIssue> ReferenceValidationIssues { get; set; } = new();
 

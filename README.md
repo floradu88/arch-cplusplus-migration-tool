@@ -33,6 +33,7 @@ This tool helps you understand and migrate complex Visual Studio solutions by:
 - ✅ **Solution Summary Report** - Comprehensive report with project types, ToolsVersion distribution, and statistics
 - ✅ **Solution Configuration Mapping** - Parses `.sln` configuration/platform mapping (solution cfg/platform → project cfg/platform)
 - ✅ **Error Resilience** - Continues parsing all projects even when individual projects fail
+- ✅ **Expanded Native Reference Sources** - Tracks forced includes, using directories, resources (`.rc`), sources (`.cpp`), MASM (`.asm`), and IDL (`.idl`) in addition to libs/includes
 - ⏳ **CMake Generation** - Auto-generate CMakeLists.txt (pending)
 
 ### Advanced Features
@@ -592,7 +593,10 @@ SolutionDependencyMapper/
 ## 📊 Supported Project Types
 
 - **Native C++**: `.vcxproj` (Visual Studio C++ projects)
+- **Legacy Native C++**: `.vcproj` (VS2005/VS2008-era C++ projects; parsed via XML fallback)
 - **Managed .NET**: `.csproj` (C# projects)
+  - `.vbproj` (VB.NET projects)
+  - `.fsproj` (F# projects)
   - .NET Framework (all versions)
   - .NET Core 3.1+
   - .NET 5.0+

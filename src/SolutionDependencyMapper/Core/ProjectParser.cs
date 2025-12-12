@@ -45,6 +45,12 @@ public class ProjectParser
             return null;
         }
 
+        // Legacy .vcproj: parse via XML fallback (does not require MSBuild/MSBuildLocator).
+        if (Path.GetExtension(projectPath).Equals(".vcproj", StringComparison.OrdinalIgnoreCase))
+        {
+            return LegacyVcprojParser.TryParse(projectPath, perConfigReferences, checkOutputs);
+        }
+
         int retryCount = 0;
         Exception? lastException = null;
 
@@ -323,6 +329,14 @@ public class ProjectParser
         node.NativeLibraryDirectories = ExtractListProperty(project, "AdditionalLibraryDirectories");
         node.IncludeDirectories = ExtractListProperty(project, "AdditionalIncludeDirectories");
         node.HeaderFiles = ExtractProjectItemPaths(project, projectPath, "ClInclude");
+
+        // Additional native sources (best-effort)
+        node.ForcedIncludeFiles = ExtractProjectFileListPropertyAsPaths(project, projectPath, "ForcedIncludeFiles");
+        node.AdditionalUsingDirectories = ExtractListProperty(project, "AdditionalUsingDirectories");
+        node.ResourceFiles = ExtractProjectItemPaths(project, projectPath, "ResourceCompile");
+        node.SourceFiles = ExtractProjectItemPaths(project, projectPath, "ClCompile");
+        node.MasmFiles = ExtractProjectItemPaths(project, projectPath, "Masm");
+        node.IdlFiles = ExtractProjectItemPaths(project, projectPath, "Midl");
     }
 
     private static List<string> BuildFlatExternalDependencies(ProjectNode node)
@@ -424,6 +438,37 @@ public class ProjectParser
             // Most vcxproj items are relative to the project directory.
             var fullPath = Path.GetFullPath(Path.Combine(projectDirectory, include));
             results.Add(fullPath);
+        }
+
+        return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static List<string> ExtractProjectFileListPropertyAsPaths(Project project, string projectPath, string propertyName)
+    {
+        // Many native properties are semicolon-separated file lists (e.g., ForcedIncludeFiles)
+        var parts = ExtractListProperty(project, propertyName);
+        if (parts.Count == 0)
+            return new List<string>();
+
+        var projectDirectory = Path.GetDirectoryName(projectPath) ?? string.Empty;
+        var results = new List<string>();
+
+        foreach (var p in parts)
+        {
+            var raw = p.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                continue;
+            if (raw.Contains("$(") || raw.Contains("%("))
+            {
+                // Keep as-is (cannot reliably resolve); still useful for reporting.
+                results.Add(raw);
+                continue;
+            }
+
+            var resolved = Path.IsPathRooted(raw)
+                ? raw
+                : Path.GetFullPath(Path.Combine(projectDirectory, raw));
+            results.Add(resolved);
         }
 
         return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -626,6 +671,13 @@ public class ProjectParser
                 snap.IncludeDirectories = ExtractListProperty(proj, "AdditionalIncludeDirectories");
                 snap.HeaderFiles = ExtractProjectItemPaths(proj, projectPath, "ClInclude");
 
+                snap.ForcedIncludeFiles = ExtractProjectFileListPropertyAsPaths(proj, projectPath, "ForcedIncludeFiles");
+                snap.AdditionalUsingDirectories = ExtractListProperty(proj, "AdditionalUsingDirectories");
+                snap.ResourceFiles = ExtractProjectItemPaths(proj, projectPath, "ResourceCompile");
+                snap.SourceFiles = ExtractProjectItemPaths(proj, projectPath, "ClCompile");
+                snap.MasmFiles = ExtractProjectItemPaths(proj, projectPath, "Masm");
+                snap.IdlFiles = ExtractProjectItemPaths(proj, projectPath, "Midl");
+
                 // Validate existence for this specific config/platform snapshot
                 var tempNode = new ProjectNode
                 {
@@ -635,7 +687,13 @@ public class ProjectParser
                     NativeDelayLoadDlls = snap.NativeDelayLoadDlls,
                     NativeLibraryDirectories = snap.NativeLibraryDirectories,
                     IncludeDirectories = snap.IncludeDirectories,
-                    HeaderFiles = snap.HeaderFiles
+                    HeaderFiles = snap.HeaderFiles,
+                    ForcedIncludeFiles = snap.ForcedIncludeFiles,
+                    AdditionalUsingDirectories = snap.AdditionalUsingDirectories,
+                    ResourceFiles = snap.ResourceFiles,
+                    SourceFiles = snap.SourceFiles,
+                    MasmFiles = snap.MasmFiles,
+                    IdlFiles = snap.IdlFiles
                 };
                 ReferenceValidator.Validate(proj, projectPath, tempNode);
                 snap.ReferenceValidationIssues = tempNode.ReferenceValidationIssues;

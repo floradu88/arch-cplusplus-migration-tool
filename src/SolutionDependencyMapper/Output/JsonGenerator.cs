@@ -54,6 +54,12 @@ public class JsonGenerator
             NativeLibraryDirectories = p.NativeLibraryDirectories,
             IncludeDirectories = p.IncludeDirectories,
             HeaderFiles = p.HeaderFiles,
+            ForcedIncludeFiles = p.ForcedIncludeFiles,
+            AdditionalUsingDirectories = p.AdditionalUsingDirectories,
+            ResourceFiles = p.ResourceFiles,
+            SourceFiles = p.SourceFiles,
+            MasmFiles = p.MasmFiles,
+            IdlFiles = p.IdlFiles,
             ReferenceValidationIssues = p.ReferenceValidationIssues.Select(i => new
             {
                 i.Category,
@@ -91,6 +97,12 @@ public class JsonGenerator
                 s.NativeLibraryDirectories,
                 s.IncludeDirectories,
                 s.HeaderFiles,
+                s.ForcedIncludeFiles,
+                s.AdditionalUsingDirectories,
+                s.ResourceFiles,
+                s.SourceFiles,
+                s.MasmFiles,
+                s.IdlFiles,
                 ReferenceValidationIssues = s.ReferenceValidationIssues.Select(i => new { i.Category, i.Reference, i.ResolvedPath, i.Details }),
                 OutputArtifact = s.OutputArtifact == null ? null : new
                 {

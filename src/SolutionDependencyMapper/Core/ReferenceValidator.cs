@@ -21,8 +21,14 @@ internal static class ReferenceValidator
     {
         ValidateProjectReferences(node);
         ValidateHeaderFiles(node);
+        ValidateForcedIncludeFiles(project, projectPath, node);
+        ValidateProjectItemsExist(node, node.ResourceFiles, "ResourceFile", "Resource file item does not exist on disk");
+        ValidateProjectItemsExist(node, node.SourceFiles, "SourceFile", "Source file item does not exist on disk");
+        ValidateProjectItemsExist(node, node.MasmFiles, "MasmFile", "MASM file item does not exist on disk");
+        ValidateProjectItemsExist(node, node.IdlFiles, "IdlFile", "IDL file item does not exist on disk");
         ValidateHintPaths(project, projectPath, node);
         ValidateDirectories(project, projectPath, node, node.IncludeDirectories, "IncludeDirectory");
+        ValidateDirectories(project, projectPath, node, node.AdditionalUsingDirectories, "AdditionalUsingDirectory");
         ValidateDirectories(project, projectPath, node, node.NativeLibraryDirectories, "LibraryDirectory");
         ValidateNativeArtifacts(project, projectPath, node);
     }
@@ -56,6 +62,92 @@ internal static class ReferenceValidator
                     Reference = header,
                     ResolvedPath = header,
                     Details = "Header file item does not exist on disk"
+                });
+            }
+        }
+    }
+
+    private static void ValidateProjectItemsExist(ProjectNode node, IEnumerable<string> items, string category, string details)
+    {
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item))
+                continue;
+
+            // If still has macros, skip validation to avoid noise.
+            if (item.Contains("$(") || item.Contains("%("))
+                continue;
+
+            if (!File.Exists(item))
+            {
+                node.ReferenceValidationIssues.Add(new ReferenceValidationIssue
+                {
+                    Category = category,
+                    Reference = item,
+                    ResolvedPath = item,
+                    Details = details
+                });
+            }
+        }
+    }
+
+    private static void ValidateForcedIncludeFiles(Project project, string projectPath, ProjectNode node)
+    {
+        if (node.ForcedIncludeFiles.Count == 0)
+            return;
+
+        var projectDir = Path.GetDirectoryName(projectPath) ?? string.Empty;
+
+        // Build a search path list similar to include resolution
+        var includeDirs = new List<string> { projectDir };
+        foreach (var d in node.IncludeDirectories)
+        {
+            var expanded = project.ExpandString(d).Trim();
+            if (expanded.Contains("$(") || expanded.Contains("%("))
+                continue;
+
+            var resolved = Path.IsPathRooted(expanded)
+                ? expanded
+                : Path.GetFullPath(Path.Combine(projectDir, expanded));
+
+            includeDirs.Add(resolved);
+        }
+
+        foreach (var fi in node.ForcedIncludeFiles)
+        {
+            var raw = fi?.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+                continue;
+
+            if (raw.Contains("$(") || raw.Contains("%("))
+                continue;
+
+            // If already looks like a rooted/full path, validate directly.
+            if (Path.IsPathRooted(raw) || raw.Contains('\\') || raw.Contains('/'))
+            {
+                var resolved = Path.IsPathRooted(raw) ? raw : Path.GetFullPath(Path.Combine(projectDir, raw));
+                if (!File.Exists(resolved))
+                {
+                    node.ReferenceValidationIssues.Add(new ReferenceValidationIssue
+                    {
+                        Category = "ForcedIncludeFile",
+                        Reference = fi,
+                        ResolvedPath = resolved,
+                        Details = "Forced include file does not exist"
+                    });
+                }
+                continue;
+            }
+
+            // Otherwise treat as a filename and search in include dirs
+            var found = includeDirs.Any(dir => File.Exists(Path.Combine(dir, raw)));
+            if (!found)
+            {
+                node.ReferenceValidationIssues.Add(new ReferenceValidationIssue
+                {
+                    Category = "ForcedIncludeFile",
+                    Reference = fi,
+                    Details = "Forced include file not found in project/include directories"
                 });
             }
         }
