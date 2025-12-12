@@ -60,7 +60,7 @@ public class ProjectParser
             {
                 EnsureMsBuildRegistered(assumeVsEnv);
 
-                var projectCollection = new ProjectCollection();
+                using var projectCollection = new ProjectCollection();
                 var project = projectCollection.LoadProject(projectPath);
 
                 var node = new ProjectNode
@@ -644,7 +644,7 @@ public class ProjectParser
             }
 
             // Evaluate project with those global properties
-            var pc = new ProjectCollection(globals);
+            using var pc = new ProjectCollection(globals);
             Project? proj = null;
             try
             {

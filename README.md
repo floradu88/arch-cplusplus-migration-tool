@@ -168,6 +168,13 @@ This prints matches to the console and writes `output/gac-microsoft.build.txt`.
 dotnet run -- "MySolution.sln" --scan-gac
 ```
 
+#### `--generate-layered-sln` (optional)
+Generates `output/layered-build.sln` which groups projects into **Solution Folders per build layer** and adds **solution-level project dependencies** to enforce a layer-by-layer build order in Visual Studio.
+
+```bash
+dotnet run -- "MySolution.sln" --generate-layered-sln
+```
+
 #### `--parallel` / `--no-parallel` and `--max-parallelism N`
 Enable or disable bounded parallel execution (tool discovery, project parsing, and output generation). Default is **enabled**.
 

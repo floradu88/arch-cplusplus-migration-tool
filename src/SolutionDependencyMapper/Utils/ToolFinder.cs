@@ -449,7 +449,7 @@ public static class ToolFinder
             // Find MSBuild using vswhere
             if (toolName.Equals("msbuild.exe", StringComparison.OrdinalIgnoreCase))
             {
-                var process = new Process
+                using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -457,12 +457,14 @@ public static class ToolFinder
                         Arguments = "-latest -requires Microsoft.Component.MSBuild -find MSBuild\\**\\Bin\\MSBuild.exe",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         CreateNoWindow = true
                     }
                 };
 
                 process.Start();
                 var output = process.StandardOutput.ReadToEnd();
+                _ = process.StandardError.ReadToEnd();
                 process.WaitForExit();
 
                 if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))

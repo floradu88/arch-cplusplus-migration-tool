@@ -123,9 +123,8 @@ public class BuildScriptGenerator
                 sb.AppendLine("    $discoveredPaths = @(");
                 foreach (var path in msbuildPaths)
                 {
-                    // Escape backslashes for PowerShell
-                    var escapedPath = path.Replace("\\", "\\");
-                    sb.AppendLine($"        \"{escapedPath}\",");
+                    // Note: Backslashes do not need escaping in PowerShell quoted file paths.
+                    sb.AppendLine($"        \"{path}\",");
                 }
                 sb.AppendLine("    )");
                 sb.AppendLine("    foreach ($path in $discoveredPaths) {");
@@ -253,9 +252,9 @@ public class BuildScriptGenerator
                 sb.AppendLine("    REM Using discovered MSBuild locations from tool discovery");
                 foreach (var path in msbuildPaths)
                 {
-                    var escapedPath = path.Replace("\\", "\\");
-                    sb.AppendLine($"    if exist \"{escapedPath}\" (");
-                    sb.AppendLine($"        set MSBUILD=\"{escapedPath}\"");
+                    // Note: Backslashes do not need escaping in quoted file paths for CMD either.
+                    sb.AppendLine($"    if exist \"{path}\" (");
+                    sb.AppendLine($"        set MSBUILD=\"{path}\"");
                     sb.AppendLine("        goto :found");
                     sb.AppendLine("    )");
                 }

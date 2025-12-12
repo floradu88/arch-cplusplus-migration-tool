@@ -40,6 +40,15 @@ public class CliOptionsTests
         Assert.Null(err);
         Assert.True(opts.ScanGac);
     }
+
+    [Fact]
+    public void TryParse_GenerateLayeredSlnFlag_IsParsed()
+    {
+        var ok = CliOptions.TryParse(new[] { "My.sln", "--generate-layered-sln" }, out var opts, out var err);
+        Assert.True(ok);
+        Assert.Null(err);
+        Assert.True(opts.GenerateLayeredSolution);
+    }
 }
 
 

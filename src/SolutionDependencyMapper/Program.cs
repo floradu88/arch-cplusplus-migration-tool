@@ -63,6 +63,7 @@ class Program
             options.ResolveNuGet,
             options.CheckOutputs,
             options.ScanGac,
+            options.GenerateLayeredSolution,
             options.Parallel,
             options.MaxParallelism);
     }
@@ -98,7 +99,7 @@ class Program
         return ctx;
     }
 
-    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool resolveNuGet, bool checkOutputs, bool scanGac, bool parallel, int maxParallelism)
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool resolveNuGet, bool checkOutputs, bool scanGac, bool generateLayeredSolution, bool parallel, int maxParallelism)
     {
         try
         {
@@ -141,6 +142,10 @@ class Program
             if (scanGac && OperatingSystem.IsWindows())
             {
                 Console.WriteLine("  Note: GAC scan enabled (--scan-gac) - using gacutil and filtering for Microsoft.Build");
+            }
+            if (generateLayeredSolution)
+            {
+                Console.WriteLine("  Note: Layered solution generation enabled (--generate-layered-sln)");
             }
             if (parallel)
             {
@@ -279,6 +284,12 @@ class Program
                 Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.bat")}");
                 Console.WriteLine($"  ✓ Generated: {Path.Combine(outputDir, "build.sh")}");
             }
+            void GenerateLayeredSolution()
+            {
+                var layeredPath = Path.Combine(outputDir, "layered-build.sln");
+                LayeredSolutionGenerator.Generate(solutionPath, graph, layeredPath);
+                Console.WriteLine($"  ✓ Generated: {layeredPath}");
+            }
 
             if (!parallel)
             {
@@ -286,6 +297,7 @@ class Program
                 GenerateMermaid();
                 GenerateDrawio();
                 GenerateScripts();
+                if (generateLayeredSolution) GenerateLayeredSolution();
             }
             else
             {
@@ -295,6 +307,8 @@ class Program
                     GenerateMermaid,
                     GenerateDrawio,
                     GenerateScripts);
+
+                if (generateLayeredSolution) GenerateLayeredSolution();
             }
 
             Console.WriteLine("\n✓ Analysis complete!");
@@ -506,6 +520,9 @@ class Program
         Console.WriteLine("  --scan-gac                 (Windows) Run `gacutil /l` and filter for Microsoft.Build (Select-String equivalent)");
         Console.WriteLine("                          Writes output/gac-microsoft.build.txt and prints matches");
         Console.WriteLine();
+        Console.WriteLine("  --generate-layered-sln     Generate output/layered-build.sln with Solution Folders per layer and solution-level dependencies");
+        Console.WriteLine("                          Helps enforce a layer-by-layer build in Visual Studio");
+        Console.WriteLine();
         Console.WriteLine("  --parallel / --no-parallel Enable/disable bounded parallel execution (default: enabled)");
         Console.WriteLine("  --max-parallelism N       Maximum degree of parallelism (default: CPU count)");
         Console.WriteLine();
@@ -517,6 +534,7 @@ class Program
         Console.WriteLine("  - build.ps1 (PowerShell build script)");
         Console.WriteLine("  - build.bat (Batch build script)");
         Console.WriteLine("  - build.sh (Shell build script for Linux/macOS)");
+        Console.WriteLine("  - layered-build.sln (optional; when --generate-layered-sln is enabled)");
         Console.WriteLine();
         Console.WriteLine("Output files are written to: <solution-directory>/output/");
         Console.WriteLine();

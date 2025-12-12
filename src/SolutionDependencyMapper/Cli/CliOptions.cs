@@ -17,7 +17,8 @@ public sealed record CliOptions(
     int MaxParallelism,
     bool ResolveNuGet,
     bool CheckOutputs,
-    bool ScanGac
+    bool ScanGac,
+    bool GenerateLayeredSolution
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -33,7 +34,8 @@ public sealed record CliOptions(
             MaxParallelism: Environment.ProcessorCount,
             ResolveNuGet: false,
             CheckOutputs: false,
-            ScanGac: false
+            ScanGac: false,
+            GenerateLayeredSolution: false
         );
         error = null;
 
@@ -131,6 +133,19 @@ public sealed record CliOptions(
         {
             argsList.Remove("--no-scan-gac");
             options = options with { ScanGac = false };
+        }
+
+        if (argsList.Contains("--generate-layered-sln") || argsList.Contains("--layered-sln"))
+        {
+            argsList.Remove("--generate-layered-sln");
+            argsList.Remove("--layered-sln");
+            options = options with { GenerateLayeredSolution = true };
+        }
+
+        if (argsList.Contains("--no-generate-layered-sln"))
+        {
+            argsList.Remove("--no-generate-layered-sln");
+            options = options with { GenerateLayeredSolution = false };
         }
 
         if (argsList.Contains("--no-parallel"))
