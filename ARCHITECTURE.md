@@ -140,6 +140,9 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
 - Per-configuration analysis (optional):
   - Evaluate project with global properties for each `Configuration|Platform`
   - Capture per-config references (NuGet/assemblies/libs/includes) as snapshots for accurate migration/build analysis
+- NuGet resolution (optional):
+  - Read `obj/project.assets.json` to capture the resolved NuGet graph (direct + transitive)
+  - Supports central package management (`Directory.Packages.props`) because versions are resolved in assets
 - Extract build settings:
   - Output directory
   - Intermediate directory

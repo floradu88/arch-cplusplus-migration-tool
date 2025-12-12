@@ -37,7 +37,7 @@ public class ProjectParser
     /// <param name="autoInstallPackages">If true, automatically install missing Microsoft.Build packages (default: true)</param>
     /// <param name="perConfigReferences">If true, evaluates each Configuration|Platform and captures references (slower)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true, bool perConfigReferences = false)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true, bool perConfigReferences = false, bool resolveNuGet = false)
     {
         if (!File.Exists(projectPath))
         {
@@ -105,6 +105,13 @@ public class ProjectParser
 
                 // Extract TargetFramework for .NET projects
                 node.TargetFramework = ExtractTargetFramework(project);
+
+                // Optional: resolve full NuGet graph from assets (supports central package management)
+                if (resolveNuGet)
+                {
+                    var assetsPath = Path.Combine(Path.GetDirectoryName(projectPath) ?? ".", "obj", "project.assets.json");
+                    node.ResolvedNuGetPackages = NuGetAssetsParser.TryParseResolvedPackages(assetsPath);
+                }
 
                 projectCollection.UnloadProject(project);
                 return node;

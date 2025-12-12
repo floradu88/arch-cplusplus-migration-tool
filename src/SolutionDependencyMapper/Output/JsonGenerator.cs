@@ -93,6 +93,14 @@ public class JsonGenerator
                 s.HeaderFiles,
                 ReferenceValidationIssues = s.ReferenceValidationIssues.Select(i => new { i.Category, i.Reference, i.ResolvedPath, i.Details })
             }),
+
+            ResolvedNuGetPackages = p.ResolvedNuGetPackages.Select(r => new
+            {
+                r.Id,
+                r.Version,
+                r.TargetFramework,
+                r.IsDirect
+            }),
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

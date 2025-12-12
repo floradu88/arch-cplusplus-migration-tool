@@ -276,6 +276,7 @@ public class JsonGeneratorTests
             Assert.Contains("solutionProjectGuid", content);
             Assert.Contains("solutionConfigurationMappings", content);
             Assert.Contains("configurationSnapshots", content);
+            Assert.Contains("resolvedNuGetPackages", content);
         }
         finally
         {

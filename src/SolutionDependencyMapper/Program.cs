@@ -60,6 +60,7 @@ class Program
             options.AssumeVsEnv,
             options.AutoInstallPackages,
             options.PerConfigReferences,
+            options.ResolveNuGet,
             options.Parallel,
             options.MaxParallelism);
     }
@@ -95,7 +96,7 @@ class Program
         return ctx;
     }
 
-    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool parallel, int maxParallelism)
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool resolveNuGet, bool parallel, int maxParallelism)
     {
         try
         {
@@ -126,6 +127,10 @@ class Program
             if (perConfigReferences)
             {
                 Console.WriteLine("  Note: Per-configuration reference snapshots are enabled (--per-config-refs)");
+            }
+            if (resolveNuGet)
+            {
+                Console.WriteLine("  Note: Resolved NuGet graph enabled (--resolve-nuget) - reads obj/project.assets.json");
             }
             if (parallel)
             {
@@ -159,7 +164,8 @@ class Program
                         assumeVsEnv,
                         maxRetries: 1,
                         autoInstallPackages: autoInstallPackages,
-                        perConfigReferences: perConfigReferences);
+                        perConfigReferences: perConfigReferences,
+                        resolveNuGet: resolveNuGet);
 
                     if (project == null)
                     {
@@ -458,6 +464,9 @@ class Program
         Console.WriteLine("  --per-config-refs          Capture per-Configuration|Platform reference snapshots (can be slower)");
         Console.WriteLine("                          Evaluates projects for each config/platform and records refs/libs/includes/packages");
         Console.WriteLine("                          Stored under configurationSnapshots in JSON");
+        Console.WriteLine();
+        Console.WriteLine("  --resolve-nuget            Parse resolved NuGet dependency graph from obj/project.assets.json (supports central package management)");
+        Console.WriteLine("                          Stored under resolvedNuGetPackages in JSON");
         Console.WriteLine();
         Console.WriteLine("  --parallel / --no-parallel Enable/disable bounded parallel execution (default: enabled)");
         Console.WriteLine("  --max-parallelism N       Maximum degree of parallelism (default: CPU count)");

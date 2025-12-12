@@ -143,6 +143,14 @@ This is useful when references differ between Debug/Release or x64/Win32, but it
 dotnet run -- "MySolution.sln" --per-config-refs
 ```
 
+#### `--resolve-nuget` (optional)
+Parse the **resolved NuGet dependency graph** from `obj/project.assets.json` (supports `Directory.Packages.props` / central package management, because it reads resolved versions).
+
+```bash
+# Make sure you ran restore at least once (or let auto-install trigger it when needed)
+dotnet run -- "MySolution.sln" --resolve-nuget
+```
+
 #### `--parallel` / `--no-parallel` and `--max-parallelism N`
 Enable or disable bounded parallel execution (tool discovery, project parsing, and output generation). Default is **enabled**.
 

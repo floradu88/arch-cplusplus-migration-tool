@@ -148,6 +148,7 @@ public class MermaidGenerator
         {
             var solPairs = p.SolutionConfigurationMappings.Select(m => m.Solution.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count();
             var snapCount = p.ConfigurationSnapshots.Count;
+            var resolvedNuGet = p.ResolvedNuGetPackages.Count;
             sb.AppendLine($"- **{p.Name}**: " +
                           $"NuGet={p.NuGetPackageReferences.Count}, " +
                           $"FrameworkRefs={p.FrameworkReferences.Count}, " +
@@ -162,7 +163,8 @@ public class MermaidGenerator
                           $"Configs={p.Configurations.Count}, " +
                           $"Platforms={p.Platforms.Count}, " +
                           $"SolCfgPairs={solPairs}, " +
-                          $"CfgSnapshots={snapCount}");
+                          $"CfgSnapshots={snapCount}, " +
+                          $"ResolvedNuGet={resolvedNuGet}");
         }
 
         sb.AppendLine();

@@ -50,6 +50,9 @@ public class ProjectNode
 
     // Per-configuration/platform reference snapshots (optional; can be expensive on large solutions)
     public List<ProjectConfigurationSnapshot> ConfigurationSnapshots { get; set; } = new();
+
+    // Resolved NuGet dependency graph (optional; populated from obj/project.assets.json)
+    public List<ResolvedNuGetPackage> ResolvedNuGetPackages { get; set; } = new();
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }

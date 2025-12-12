@@ -14,7 +14,8 @@ public sealed record CliOptions(
     bool AutoInstallPackages,
     bool PerConfigReferences,
     bool Parallel,
-    int MaxParallelism
+    int MaxParallelism,
+    bool ResolveNuGet
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -27,7 +28,8 @@ public sealed record CliOptions(
             AutoInstallPackages: true,
             PerConfigReferences: false,
             Parallel: true,
-            MaxParallelism: Environment.ProcessorCount
+            MaxParallelism: Environment.ProcessorCount,
+            ResolveNuGet: false
         );
         error = null;
 
@@ -84,6 +86,20 @@ public sealed record CliOptions(
             argsList.Remove("--no-per-config-refs");
             argsList.Remove("--no-per-config-references");
             options = options with { PerConfigReferences = false };
+        }
+
+        if (argsList.Contains("--resolve-nuget") || argsList.Contains("--resolve-nuget-packages"))
+        {
+            argsList.Remove("--resolve-nuget");
+            argsList.Remove("--resolve-nuget-packages");
+            options = options with { ResolveNuGet = true };
+        }
+
+        if (argsList.Contains("--no-resolve-nuget") || argsList.Contains("--no-resolve-nuget-packages"))
+        {
+            argsList.Remove("--no-resolve-nuget");
+            argsList.Remove("--no-resolve-nuget-packages");
+            options = options with { ResolveNuGet = false };
         }
 
         if (argsList.Contains("--no-parallel"))
