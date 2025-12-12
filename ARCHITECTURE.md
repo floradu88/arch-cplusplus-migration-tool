@@ -221,8 +221,9 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
 
 **Output Files**:
 - `build-layers.json` - Machine-readable layer structure
-- `build.sh` - Linux/macOS shell script
+- `build.bat` - Windows CMD batch script
 - `build.ps1` - Windows PowerShell script
+- `build.sh` - Linux/macOS shell script
 
 **Features**:
 - Topological sorting into build layers
@@ -232,6 +233,8 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
 - Platform-specific build commands:
   - Windows: MSBuild
   - Linux/macOS: CMake or make
+- **Batch script**: Proper variable assignment (no quotes in `set` statements, quotes added at usage time)
+- **Shell script**: Windows path to WSL mount point conversion (supports all drive letters: C:, D:, E:, etc.)
 
 ---
 

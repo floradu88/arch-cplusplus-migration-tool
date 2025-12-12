@@ -489,6 +489,7 @@ output\build.bat
 - Works in standard CMD prompt
 - Automatic MSBuild detection
 - Compatible with older Windows systems
+- Properly handles paths with spaces (quotes added at usage time, not in variable assignment)
 
 #### 7. `build.sh` (Shell)
 Linux/macOS shell script for CMake-based builds.
@@ -505,6 +506,11 @@ chmod +x output/build.sh
 cd /path/to/solution
 ./output/build.sh
 ```
+
+**Features:**
+- Automatically converts Windows CMake paths to WSL mount points (supports all drive letters: C:, D:, E:, etc.)
+- Falls back to `cmake` from PATH if converted path doesn't exist
+- Compatible with WSL and native Linux/macOS environments
 
 **Note:** This script assumes you have a CMake build system. For MSBuild-based projects, use the Windows scripts.
 

@@ -254,7 +254,7 @@ public class BuildScriptGenerator
                 {
                     // Note: Backslashes do not need escaping in quoted file paths for CMD either.
                     sb.AppendLine($"    if exist \"{path}\" (");
-                    sb.AppendLine($"        set MSBUILD=\"{path}\"");
+                    sb.AppendLine($"        set MSBUILD={path}");
                     sb.AppendLine("        goto :found");
                     sb.AppendLine("    )");
                 }
@@ -399,8 +399,19 @@ public class BuildScriptGenerator
             if (cmakePath != null)
             {
                 // Convert Windows path to Unix-style if needed (for WSL scenarios)
-                var unixPath = cmakePath.Replace("\\", "/").Replace("C:", "/mnt/c");
-                sb.AppendLine("# Using discovered CMake");
+                // Handle all drive letters (C:, D:, E:, etc.) and convert to WSL mount points
+                var unixPath = cmakePath.Replace("\\", "/");
+                
+                // Check if path starts with a Windows drive letter (e.g., "C:", "D:")
+                if (unixPath.Length >= 2 && char.IsLetter(unixPath[0]) && unixPath[1] == ':')
+                {
+                    var driveLetter = char.ToLower(unixPath[0]);
+                    var pathAfterDrive = unixPath.Substring(2);
+                    // Convert to WSL mount point format: C:\path -> /mnt/c/path
+                    unixPath = $"/mnt/{driveLetter}{pathAfterDrive}";
+                }
+                
+                sb.AppendLine("# Using discovered CMake (Windows path converted for WSL compatibility)");
                 sb.AppendLine($"CMAKE=\"{unixPath}\"");
                 sb.AppendLine("if [ ! -f \"$CMAKE\" ]; then");
                 sb.AppendLine("    CMAKE=\"cmake\"  # Fallback to PATH");
