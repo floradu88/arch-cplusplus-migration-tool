@@ -91,7 +91,15 @@ public class JsonGenerator
                 s.NativeLibraryDirectories,
                 s.IncludeDirectories,
                 s.HeaderFiles,
-                ReferenceValidationIssues = s.ReferenceValidationIssues.Select(i => new { i.Category, i.Reference, i.ResolvedPath, i.Details })
+                ReferenceValidationIssues = s.ReferenceValidationIssues.Select(i => new { i.Category, i.Reference, i.ResolvedPath, i.Details }),
+                OutputArtifact = s.OutputArtifact == null ? null : new
+                {
+                    s.OutputArtifact.Configuration,
+                    s.OutputArtifact.Platform,
+                    s.OutputArtifact.ExpectedPath,
+                    s.OutputArtifact.Exists,
+                    s.OutputArtifact.Details
+                }
             }),
 
             ResolvedNuGetPackages = p.ResolvedNuGetPackages.Select(r => new
@@ -101,6 +109,15 @@ public class JsonGenerator
                 r.TargetFramework,
                 r.IsDirect
             }),
+
+            OutputArtifact = p.OutputArtifact == null ? null : new
+            {
+                p.OutputArtifact.Configuration,
+                p.OutputArtifact.Platform,
+                p.OutputArtifact.ExpectedPath,
+                p.OutputArtifact.Exists,
+                p.OutputArtifact.Details
+            },
             Properties = p.Properties,
             MigrationScore = p.MigrationScore,
             MigrationDifficultyLevel = p.MigrationDifficultyLevel

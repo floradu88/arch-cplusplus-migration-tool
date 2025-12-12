@@ -15,7 +15,9 @@ public sealed record CliOptions(
     bool PerConfigReferences,
     bool Parallel,
     int MaxParallelism,
-    bool ResolveNuGet
+    bool ResolveNuGet,
+    bool CheckOutputs,
+    bool ScanGac
 )
 {
     public static bool TryParse(string[] args, out CliOptions options, out string? error)
@@ -29,7 +31,9 @@ public sealed record CliOptions(
             PerConfigReferences: false,
             Parallel: true,
             MaxParallelism: Environment.ProcessorCount,
-            ResolveNuGet: false
+            ResolveNuGet: false,
+            CheckOutputs: false,
+            ScanGac: false
         );
         error = null;
 
@@ -100,6 +104,33 @@ public sealed record CliOptions(
             argsList.Remove("--no-resolve-nuget");
             argsList.Remove("--no-resolve-nuget-packages");
             options = options with { ResolveNuGet = false };
+        }
+
+        if (argsList.Contains("--check-outputs") || argsList.Contains("--validate-outputs"))
+        {
+            argsList.Remove("--check-outputs");
+            argsList.Remove("--validate-outputs");
+            options = options with { CheckOutputs = true };
+        }
+
+        if (argsList.Contains("--no-check-outputs") || argsList.Contains("--no-validate-outputs"))
+        {
+            argsList.Remove("--no-check-outputs");
+            argsList.Remove("--no-validate-outputs");
+            options = options with { CheckOutputs = false };
+        }
+
+        if (argsList.Contains("--scan-gac") || argsList.Contains("--scan-gac-msbuild"))
+        {
+            argsList.Remove("--scan-gac");
+            argsList.Remove("--scan-gac-msbuild");
+            options = options with { ScanGac = true };
+        }
+
+        if (argsList.Contains("--no-scan-gac"))
+        {
+            argsList.Remove("--no-scan-gac");
+            options = options with { ScanGac = false };
         }
 
         if (argsList.Contains("--no-parallel"))

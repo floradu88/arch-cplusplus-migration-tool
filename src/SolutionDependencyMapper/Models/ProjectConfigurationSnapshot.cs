@@ -22,6 +22,8 @@ public sealed class ProjectConfigurationSnapshot
     public List<string> HeaderFiles { get; set; } = new();
 
     public List<ReferenceValidationIssue> ReferenceValidationIssues { get; set; } = new();
+
+    public OutputArtifactStatus? OutputArtifact { get; set; }
 }
 
 

@@ -31,6 +31,15 @@ public class CliOptionsTests
         Assert.False(ok);
         Assert.Contains("Invalid value", err);
     }
+
+    [Fact]
+    public void TryParse_ScanGacFlag_IsParsed()
+    {
+        var ok = CliOptions.TryParse(new[] { "My.sln", "--scan-gac" }, out var opts, out var err);
+        Assert.True(ok);
+        Assert.Null(err);
+        Assert.True(opts.ScanGac);
+    }
 }
 
 

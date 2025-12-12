@@ -37,7 +37,7 @@ public class ProjectParser
     /// <param name="autoInstallPackages">If true, automatically install missing Microsoft.Build packages (default: true)</param>
     /// <param name="perConfigReferences">If true, evaluates each Configuration|Platform and captures references (slower)</param>
     /// <returns>ProjectNode with all extracted information, or null if parsing fails</returns>
-    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true, bool perConfigReferences = false, bool resolveNuGet = false)
+    public static ProjectNode? ParseProject(string projectPath, bool assumeVsEnv = false, int maxRetries = 1, bool autoInstallPackages = true, bool perConfigReferences = false, bool resolveNuGet = false, bool checkOutputs = false)
     {
         if (!File.Exists(projectPath))
         {
@@ -97,7 +97,7 @@ public class ProjectParser
                 // Optional: evaluate per config/platform and snapshot references (can be expensive)
                 if (perConfigReferences && node.ConfigurationPlatforms.Count > 0)
                 {
-                    node.ConfigurationSnapshots = ExtractConfigurationSnapshots(projectPath, node.ConfigurationPlatforms, assumeVsEnv);
+                    node.ConfigurationSnapshots = ExtractConfigurationSnapshots(projectPath, node.ConfigurationPlatforms, assumeVsEnv, checkOutputs);
                 }
 
                 // Extract additional properties
@@ -111,6 +111,12 @@ public class ProjectParser
                 {
                     var assetsPath = Path.Combine(Path.GetDirectoryName(projectPath) ?? ".", "obj", "project.assets.json");
                     node.ResolvedNuGetPackages = NuGetAssetsParser.TryParseResolvedPackages(assetsPath);
+                }
+
+                // Optional: validate expected output artifact exists (best-effort; does not build)
+                if (checkOutputs)
+                {
+                    node.OutputArtifact = BuildOutputArtifactStatus(project, projectPath, configuration: null, platform: null);
                 }
 
                 projectCollection.UnloadProject(project);
@@ -572,7 +578,7 @@ public class ProjectParser
         return false;
     }
 
-    private static List<ProjectConfigurationSnapshot> ExtractConfigurationSnapshots(string projectPath, List<string> configurationPlatforms, bool assumeVsEnv)
+    private static List<ProjectConfigurationSnapshot> ExtractConfigurationSnapshots(string projectPath, List<string> configurationPlatforms, bool assumeVsEnv, bool checkOutputs)
     {
         EnsureMsBuildRegistered(assumeVsEnv);
 
@@ -634,6 +640,11 @@ public class ProjectParser
                 ReferenceValidator.Validate(proj, projectPath, tempNode);
                 snap.ReferenceValidationIssues = tempNode.ReferenceValidationIssues;
 
+                if (checkOutputs)
+                {
+                    snap.OutputArtifact = BuildOutputArtifactStatus(proj, projectPath, cfg, plat);
+                }
+
                 results.Add(snap);
             }
             catch
@@ -648,6 +659,31 @@ public class ProjectParser
         }
 
         return results.OrderBy(s => s.Key, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static OutputArtifactStatus BuildOutputArtifactStatus(Project project, string projectPath, string? configuration, string? platform)
+    {
+        var expected = OutputArtifactResolver.TryGetTargetPath(project, projectPath);
+        if (string.IsNullOrWhiteSpace(expected))
+        {
+            return new OutputArtifactStatus
+            {
+                Configuration = configuration,
+                Platform = platform,
+                ExpectedPath = null,
+                Exists = false,
+                Details = "Could not determine TargetPath/TargetDir+TargetFileName/OutDir output path"
+            };
+        }
+
+        return new OutputArtifactStatus
+        {
+            Configuration = configuration,
+            Platform = platform,
+            ExpectedPath = expected,
+            Exists = File.Exists(expected),
+            Details = File.Exists(expected) ? null : "Output file not found (tool does not build; run build to produce outputs)"
+        };
     }
 
     /// <summary>

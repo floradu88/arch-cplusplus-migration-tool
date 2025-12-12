@@ -458,5 +458,71 @@ public class ProjectParserTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void ParseProject_CheckOutputs_ComputesAndChecksTargetPath()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var outDir = Path.Combine(tempDir, "out");
+        Directory.CreateDirectory(outDir);
+
+        var expected = Path.Combine(outDir, "App.dll");
+        File.WriteAllText(expected, "dummy");
+
+        var projectPath = Path.Combine(tempDir, "App.csproj");
+        File.WriteAllText(projectPath, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <TargetPath>out\App.dll</TargetPath>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false, checkOutputs: true);
+            Assert.NotNull(result);
+            Assert.NotNull(result.OutputArtifact);
+            Assert.True(result.OutputArtifact!.Exists);
+            Assert.Equal(expected, result.OutputArtifact.ExpectedPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ParseProject_CheckOutputs_MissingOutputIsReported()
+    {
+        if (!EnsureMsBuildRegisteredOrSkip()) return;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        var projectPath = Path.Combine(tempDir, "App.csproj");
+        File.WriteAllText(projectPath, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <TargetPath>out\Missing.dll</TargetPath>
+  </PropertyGroup>
+</Project>");
+
+        try
+        {
+            var result = ProjectParser.ParseProject(projectPath, assumeVsEnv: false, checkOutputs: true);
+            Assert.NotNull(result);
+            Assert.NotNull(result.OutputArtifact);
+            Assert.False(result.OutputArtifact!.Exists);
+            Assert.EndsWith(Path.Combine("out", "Missing.dll"), result.OutputArtifact.ExpectedPath!.Replace('/', '\\'), StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
 

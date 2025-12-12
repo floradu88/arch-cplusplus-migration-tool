@@ -49,6 +49,7 @@ public static class ToolFinder
         var toolsToFind = new[]
         {
             "msbuild.exe",
+            "gacutil.exe",
             "cmake.exe",
             "cl.exe",           // MSVC compiler
             "link.exe",         // MSVC linker
@@ -139,6 +140,13 @@ public static class ToolFinder
             results.AddRange(cmakeResults);
         }
 
+        // 4b. Search in common gacutil locations (Windows SDK)
+        if (toolName.Contains("gacutil", StringComparison.OrdinalIgnoreCase))
+        {
+            var gacutilResults = SearchGacutilLocations(toolName);
+            results.AddRange(gacutilResults);
+        }
+
         // 5. Search in common MinGW/GCC locations
         if (toolName.Contains("gcc", StringComparison.OrdinalIgnoreCase) ||
             toolName.Contains("g++", StringComparison.OrdinalIgnoreCase))
@@ -159,6 +167,43 @@ public static class ToolFinder
             .GroupBy(t => t.Path, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
+    }
+
+    private static List<FoundTool> SearchGacutilLocations(string toolName)
+    {
+        var results = new List<FoundTool>();
+
+        try
+        {
+            var programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)") ?? @"C:\Program Files (x86)";
+
+            // Common Windows SDK locations for gacutil.exe
+            var candidates = new[]
+            {
+                Path.Combine(programFilesX86, "Microsoft SDKs", "Windows", "v10.0A", "bin", "NETFX 4.8 Tools", "gacutil.exe"),
+                Path.Combine(programFilesX86, "Microsoft SDKs", "Windows", "v10.0A", "bin", "NETFX 4.7.2 Tools", "gacutil.exe"),
+                Path.Combine(programFilesX86, "Microsoft SDKs", "Windows", "v8.1A", "bin", "NETFX 4.5.1 Tools", "gacutil.exe")
+            };
+
+            foreach (var c in candidates)
+            {
+                if (File.Exists(c))
+                {
+                    results.Add(new FoundTool
+                    {
+                        Name = toolName,
+                        Path = c,
+                        Source = ToolSource.CommonLocation
+                    });
+                }
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return results;
     }
 
     /// <summary>

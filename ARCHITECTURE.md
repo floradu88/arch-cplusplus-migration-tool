@@ -91,6 +91,8 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
   - Visual Studio directories (using vswhere.exe)
 - Store discovered tools in `ToolsContext` for use throughout the application
 - Provide tool paths to build script generators
+- Optional environment scans:
+  - Windows GAC scan via `gacutil /l` filtered for `Microsoft.Build*` (when enabled)
 
 **Input**: Optional project root directory  
 **Output**: `ToolsContext` with all discovered tools
@@ -143,6 +145,9 @@ The Solution Dependency Mapper is a cross-platform .NET tool (supports .NET 8 an
 - NuGet resolution (optional):
   - Read `obj/project.assets.json` to capture the resolved NuGet graph (direct + transitive)
   - Supports central package management (`Directory.Packages.props`) because versions are resolved in assets
+- Output artifact validation (optional):
+  - Compute best-effort `TargetPath` and check whether the output exists on disk
+  - Can be captured per `Configuration|Platform` when per-config snapshots are enabled
 - Extract build settings:
   - Output directory
   - Intermediate directory

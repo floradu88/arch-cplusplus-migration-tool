@@ -61,6 +61,8 @@ class Program
             options.AutoInstallPackages,
             options.PerConfigReferences,
             options.ResolveNuGet,
+            options.CheckOutputs,
+            options.ScanGac,
             options.Parallel,
             options.MaxParallelism);
     }
@@ -96,7 +98,7 @@ class Program
         return ctx;
     }
 
-    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool resolveNuGet, bool parallel, int maxParallelism)
+    private static int RunAnalysis(string solutionPath, bool assumeVsEnv, bool autoInstallPackages, bool perConfigReferences, bool resolveNuGet, bool checkOutputs, bool scanGac, bool parallel, int maxParallelism)
     {
         try
         {
@@ -132,6 +134,14 @@ class Program
             {
                 Console.WriteLine("  Note: Resolved NuGet graph enabled (--resolve-nuget) - reads obj/project.assets.json");
             }
+            if (checkOutputs)
+            {
+                Console.WriteLine("  Note: Output artifact validation enabled (--check-outputs)");
+            }
+            if (scanGac && OperatingSystem.IsWindows())
+            {
+                Console.WriteLine("  Note: GAC scan enabled (--scan-gac) - using gacutil and filtering for Microsoft.Build");
+            }
             if (parallel)
             {
                 Console.WriteLine($"  Note: Parallel execution enabled (max-parallelism={maxParallelism})");
@@ -165,7 +175,8 @@ class Program
                         maxRetries: 1,
                         autoInstallPackages: autoInstallPackages,
                         perConfigReferences: perConfigReferences,
-                        resolveNuGet: resolveNuGet);
+                        resolveNuGet: resolveNuGet,
+                        checkOutputs: checkOutputs);
 
                     if (project == null)
                     {
@@ -218,6 +229,27 @@ class Program
             Directory.CreateDirectory(outputDir);
 
             Console.WriteLine("\nGenerating outputs...");
+
+            if (scanGac && OperatingSystem.IsWindows())
+            {
+                var lines = GacScanner.TryListMicrosoftBuildAssembliesFromGac(_toolsContext);
+                if (lines.Count > 0)
+                {
+                    Console.WriteLine("\nGAC Microsoft.Build entries:");
+                    foreach (var l in lines)
+                    {
+                        Console.WriteLine($"  {l}");
+                    }
+
+                    var outPath = Path.Combine(outputDir, "gac-microsoft.build.txt");
+                    File.WriteAllLines(outPath, lines);
+                    Console.WriteLine($"  ✓ Generated: {outPath}");
+                }
+                else
+                {
+                    Console.WriteLine("\nGAC scan: no Microsoft.Build entries found (or gacutil unavailable).");
+                }
+            }
 
             var jsonPath = Path.Combine(outputDir, "dependency-tree.json");
             var mermaidPath = Path.Combine(outputDir, "dependency-graph.md");
@@ -467,6 +499,12 @@ class Program
         Console.WriteLine();
         Console.WriteLine("  --resolve-nuget            Parse resolved NuGet dependency graph from obj/project.assets.json (supports central package management)");
         Console.WriteLine("                          Stored under resolvedNuGetPackages in JSON");
+        Console.WriteLine();
+        Console.WriteLine("  --check-outputs            Validate expected output binary paths exist (best-effort; does not build)");
+        Console.WriteLine("                          Stored under outputArtifact / configurationSnapshots[*].outputArtifact in JSON");
+        Console.WriteLine();
+        Console.WriteLine("  --scan-gac                 (Windows) Run `gacutil /l` and filter for Microsoft.Build (Select-String equivalent)");
+        Console.WriteLine("                          Writes output/gac-microsoft.build.txt and prints matches");
         Console.WriteLine();
         Console.WriteLine("  --parallel / --no-parallel Enable/disable bounded parallel execution (default: enabled)");
         Console.WriteLine("  --max-parallelism N       Maximum degree of parallelism (default: CPU count)");

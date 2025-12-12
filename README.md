@@ -151,6 +151,22 @@ Parse the **resolved NuGet dependency graph** from `obj/project.assets.json` (su
 dotnet run -- "MySolution.sln" --resolve-nuget
 ```
 
+#### `--check-outputs` (optional)
+Validate whether the expected output binary path exists (**the tool will not build**, so this mainly helps detect “already-built outputs” vs missing artifacts).
+
+```bash
+dotnet run -- "MySolution.sln" --check-outputs
+```
+
+#### `--scan-gac` (Windows only)
+Runs `gacutil /l` and filters the output for `Microsoft.Build` (PowerShell `Select-String Microsoft.Build` equivalent).
+
+This prints matches to the console and writes `output/gac-microsoft.build.txt`.
+
+```bash
+dotnet run -- "MySolution.sln" --scan-gac
+```
+
 #### `--parallel` / `--no-parallel` and `--max-parallelism N`
 Enable or disable bounded parallel execution (tool discovery, project parsing, and output generation). Default is **enabled**.
 

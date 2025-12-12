@@ -53,6 +53,9 @@ public class ProjectNode
 
     // Resolved NuGet dependency graph (optional; populated from obj/project.assets.json)
     public List<ResolvedNuGetPackage> ResolvedNuGetPackages { get; set; } = new();
+
+    // Output artifact checks (optional)
+    public OutputArtifactStatus? OutputArtifact { get; set; }
     
     // .NET Target Framework (for .csproj files)
     public string? TargetFramework { get; set; }
